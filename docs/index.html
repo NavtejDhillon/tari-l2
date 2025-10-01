@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TariMarket L2 - Layer 2 Marketplace on Tari</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f8f9fa;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 4rem 2rem;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            font-weight: 700;
+        }
+
+        header p {
+            font-size: 1.25rem;
+            opacity: 0.95;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        nav {
+            background: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        nav ul {
+            list-style: none;
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            flex-wrap: wrap;
+        }
+
+        nav a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+
+        nav a:hover {
+            color: #764ba2;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 3rem 2rem;
+        }
+
+        section {
+            background: white;
+            margin-bottom: 2rem;
+            padding: 3rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        h2 {
+            font-size: 2rem;
+            margin-bottom: 1.5rem;
+            color: #2d3748;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 0.5rem;
+        }
+
+        h3 {
+            font-size: 1.5rem;
+            margin: 2rem 0 1rem;
+            color: #4a5568;
+        }
+
+        p {
+            margin-bottom: 1rem;
+            color: #4a5568;
+        }
+
+        ul {
+            margin-left: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+            color: #4a5568;
+        }
+
+        .highlight-box {
+            background: #f7fafc;
+            border-left: 4px solid #667eea;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+        }
+
+        .roadmap-phase {
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            border-left: 4px solid #764ba2;
+            background: #f7fafc;
+        }
+
+        .roadmap-phase h3 {
+            margin-top: 0;
+            color: #764ba2;
+        }
+
+        .donation-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 3rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .donation-section h2 {
+            color: white;
+            border-bottom: 3px solid white;
+        }
+
+        .donation-addresses {
+            display: grid;
+            gap: 2rem;
+            margin-top: 2rem;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .donation-address {
+            background: rgba(255,255,255,0.1);
+            padding: 1.5rem;
+            border-radius: 8px;
+            backdrop-filter: blur(10px);
+        }
+
+        .donation-address h3 {
+            color: white;
+            margin: 0 0 1rem 0;
+            font-size: 1.25rem;
+        }
+
+        .address-code {
+            background: rgba(0,0,0,0.2);
+            padding: 1rem;
+            border-radius: 4px;
+            word-break: break-all;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            color: #fff;
+        }
+
+        .cta-button {
+            display: inline-block;
+            background: white;
+            color: #667eea;
+            padding: 1rem 2rem;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: 600;
+            margin-top: 1rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        footer {
+            background: #2d3748;
+            color: white;
+            text-align: center;
+            padding: 2rem;
+            margin-top: 4rem;
+        }
+
+        footer a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 1.75rem;
+            }
+
+            header p {
+                font-size: 1rem;
+            }
+
+            section {
+                padding: 2rem 1.5rem;
+            }
+
+            nav ul {
+                gap: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>TariMarket L2</h1>
+        <p>Layer 2 Marketplace Solution on Tari Blockchain</p>
+    </header>
+
+    <nav>
+        <ul>
+            <li><a href="#philosophy">Philosophy</a></li>
+            <li><a href="#architecture">Architecture</a></li>
+            <li><a href="#roadmap">Roadmap</a></li>
+            <li><a href="#support">Support Development</a></li>
+            <li><a href="https://github.com/NavtejDhillon/tari-l2">GitHub</a></li>
+        </ul>
+    </nav>
+
+    <div class="container">
+        <section id="philosophy">
+            <h2>Philosophy</h2>
+
+            <h3>Privacy-First Commerce</h3>
+            <p>TariMarket L2 is built on the principle that financial privacy is a fundamental human right. By leveraging the Tari blockchain's privacy features and extending them to Layer 2, we enable merchants and buyers to transact without sacrificing their financial privacy.</p>
+
+            <h3>Scaling Without Compromise</h3>
+            <p>The blockchain trilemma suggests we must choose between security, decentralization, and scalability. We reject this false choice. By implementing state channels as a Layer 2 solution, TariMarket L2 achieves:</p>
+            <ul>
+                <li><strong>Security:</strong> All transactions are cryptographically signed and can be settled on Layer 1</li>
+                <li><strong>Decentralization:</strong> No central authority controls the network or state channels</li>
+                <li><strong>Scalability:</strong> Instant, low-cost transactions through off-chain state updates</li>
+            </ul>
+
+            <div class="highlight-box">
+                <p><strong>Core Principle:</strong> The security of Layer 1 combined with the performance of off-chain computation. TariMarket L2 brings the best of both worlds to privacy-focused commerce.</p>
+            </div>
+
+            <h3>Decentralized Infrastructure</h3>
+            <p>We believe in true decentralization. TariMarket L2 is designed so that:</p>
+            <ul>
+                <li>Anyone can run a node</li>
+                <li>No permission is required to participate</li>
+                <li>No single entity controls the network</li>
+                <li>All code is open source and auditable</li>
+                <li>State channels are peer-to-peer with no intermediaries</li>
+            </ul>
+
+            <h3>Practical Privacy</h3>
+            <p>Privacy should not come at the cost of usability. TariMarket L2 aims to make private, secure commerce as easy as traditional e-commerce, with instant confirmations and minimal fees while maintaining strong privacy guarantees.</p>
+        </section>
+
+        <section id="architecture">
+            <h2>Architecture</h2>
+
+            <h3>Two-Layer Design</h3>
+            <p>TariMarket L2 operates as a hybrid system combining the security of Layer 1 with the performance of Layer 2:</p>
+
+            <div class="highlight-box">
+                <p><strong>Layer 1 (Tari Blockchain):</strong> Handles collateral deposits, dispute resolution, and final settlement. Provides the security foundation for all Layer 2 operations.</p>
+            </div>
+
+            <div class="highlight-box">
+                <p><strong>Layer 2 (State Channels):</strong> Handles instant marketplace transactions between channel participants. Updates happen off-chain with minimal latency and cost.</p>
+            </div>
+
+            <h3>State Channel Protocol</h3>
+            <p>State channels enable participants to transact off-chain while maintaining the ability to settle on-chain at any time:</p>
+            <ul>
+                <li>Participants lock collateral on Layer 1 to open a channel</li>
+                <li>All subsequent transactions occur off-chain with cryptographic signatures</li>
+                <li>Channel state can be cooperatively closed or enforced via dispute resolution</li>
+                <li>Nonce-based replay protection ensures transaction ordering</li>
+            </ul>
+
+            <h3>Marketplace Operations</h3>
+            <p>The marketplace layer manages:</p>
+            <ul>
+                <li>Product listings with metadata and pricing</li>
+                <li>Order placement and status tracking</li>
+                <li>Balance management across channel participants</li>
+                <li>State synchronization between peers</li>
+            </ul>
+
+            <h3>Security Model</h3>
+            <p>Multi-layered security approach:</p>
+            <ul>
+                <li>Ed25519 digital signatures for all state transitions</li>
+                <li>Multi-party signature requirements for channel updates</li>
+                <li>BLAKE3 cryptographic hashing for state commitments</li>
+                <li>Challenge periods for dispute resolution</li>
+                <li>Fraud proofs to prevent malicious behavior</li>
+            </ul>
+        </section>
+
+        <section id="roadmap">
+            <h2>Development Roadmap</h2>
+
+            <div class="roadmap-phase">
+                <h3>Phase 1: Core Infrastructure (Completed)</h3>
+                <ul>
+                    <li>State channel protocol with multi-party support</li>
+                    <li>Marketplace state management system</li>
+                    <li>P2P networking infrastructure using libp2p</li>
+                    <li>JSON-RPC API for application integration</li>
+                    <li>Persistent storage layer with embedded database</li>
+                    <li>Cryptographic primitives (Ed25519, BLAKE3)</li>
+                </ul>
+            </div>
+
+            <div class="roadmap-phase">
+                <h3>Phase 2: Tari Integration (In Progress)</h3>
+                <ul>
+                    <li>Complete Tari L1 client implementation</li>
+                    <li>On-chain collateral locking mechanism</li>
+                    <li>State checkpoint publishing to Layer 1</li>
+                    <li>Dispute resolution contract logic</li>
+                    <li>Challenge period implementation</li>
+                    <li>Cooperative and forced channel closure</li>
+                </ul>
+            </div>
+
+            <div class="roadmap-phase">
+                <h3>Phase 3: Enhanced Protocol Features</h3>
+                <ul>
+                    <li>Multi-channel support per participant</li>
+                    <li>Virtual channels for transitive trust</li>
+                    <li>Channel rebalancing mechanisms</li>
+                    <li>Watchtower services for offline security</li>
+                    <li>Optimistic state updates with rollback</li>
+                    <li>Dynamic fee mechanisms</li>
+                    <li>Channel factories for efficient onboarding</li>
+                </ul>
+            </div>
+
+            <div class="roadmap-phase">
+                <h3>Phase 4: Application Ecosystem</h3>
+                <ul>
+                    <li>Web-based wallet with channel management</li>
+                    <li>Mobile SDKs for iOS and Android</li>
+                    <li>IPFS integration for decentralized content</li>
+                    <li>Merchant dashboard and analytics</li>
+                    <li>Escrow and dispute resolution interface</li>
+                    <li>Marketplace discovery and search</li>
+                    <li>Payment widgets for website integration</li>
+                </ul>
+            </div>
+
+            <div class="roadmap-phase">
+                <h3>Phase 5: Advanced Features</h3>
+                <ul>
+                    <li>Cross-chain atomic swaps</li>
+                    <li>Privacy-preserving reputation system</li>
+                    <li>Decentralized identity integration</li>
+                    <li>Smart contract execution layer</li>
+                    <li>Confidential assets support</li>
+                    <li>Zero-knowledge proof integration</li>
+                </ul>
+            </div>
+
+            <div class="highlight-box">
+                <p><strong>Timeline:</strong> This is an ambitious, long-term project. Phase 2 is expected to complete in Q2 2025, with subsequent phases rolling out throughout 2025-2026. Development speed depends on community support and contributions.</p>
+            </div>
+        </section>
+
+        <section id="support" class="donation-section">
+            <h2>Support Development</h2>
+            <p>TariMarket L2 is an open-source project built for the community. Your support helps fund development, security audits, and infrastructure costs.</p>
+
+            <div class="donation-addresses">
+                <div class="donation-address">
+                    <h3>Monero (XMR)</h3>
+                    <div class="address-code">48LDSV3jaHaNWSDoWLg2HPGzKFeSThYg3dzKypiMRN68SsNLGURVhsec6XkjHFFk1K8eUfPEQjwS18tfaRMeVXim33Fca2D</div>
+                </div>
+                <div class="donation-address">
+                    <h3>Tari</h3>
+                    <div class="address-code">12EU7KJ9ycjuPsmcf9udAaDPoczfMED7tnCVFUgWkFZmsAdaJr5fNDWPzCZp6pzePo19Udi3d7Q8u2ouYMcw46Qq16F</div>
+                </div>
+            </div>
+
+            <p style="margin-top: 2rem;">Every contribution, no matter the size, makes a difference. Thank you for supporting privacy-focused, decentralized commerce.</p>
+
+            <a href="https://github.com/NavtejDhillon/tari-l2" class="cta-button">View on GitHub</a>
+        </section>
+    </div>
+
+    <footer>
+        <p>&copy; 2025 TariMarket L2. Open source under the MIT License.</p>
+        <p><a href="https://github.com/NavtejDhillon/tari-l2">GitHub</a> | <a href="https://github.com/NavtejDhillon/tari-l2/issues">Report Issues</a></p>
+    </footer>
+</body>
+</html>
