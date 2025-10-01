@@ -1,0 +1,14 @@
+data_dir = "./testnet_data/node2/data"
+
+[tari_node]
+address = "127.0.0.1"
+port = 18142
+
+[network]
+listen_addr = "/ip4/0.0.0.0/tcp/9001"
+bootstrap_peers = ["/ip4/127.0.0.1/tcp/9000"]
+max_peers = 50
+
+[rpc]
+listen_addr = "127.0.0.1"
+port = 18001

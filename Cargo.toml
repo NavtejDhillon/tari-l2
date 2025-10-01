@@ -1,0 +1,63 @@
+[workspace]
+members = [
+    "crates/l2-node",
+    "crates/state-channel",
+    "crates/marketplace",
+    "crates/p2p",
+    "crates/rpc",
+    "crates/common",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["TariMarket Team"]
+license = "MIT"
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1.40", features = ["full"] }
+async-trait = "0.1"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+bincode = "1.3"
+serde_arrays = "0.1"
+
+# Cryptography
+blake3 = "1.5"
+curve25519-dalek = "4.1"
+ed25519-dalek = "2.1"
+rand = "0.8"
+
+# Networking
+libp2p = { version = "0.53", features = ["tcp", "noise", "yamux", "gossipsub", "identify", "macros", "tokio"] }
+tonic = "0.12"
+prost = "0.13"
+
+# Database
+sled = "0.34"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Tari integration
+tari_core = { git = "https://github.com/tari-project/tari", branch = "development" }
+tari_common = { git = "https://github.com/tari-project/tari", branch = "development" }
+tari_crypto = { git = "https://github.com/tari-project/tari", branch = "development" }
+tari_comms = { git = "https://github.com/tari-project/tari", branch = "development" }
+
+# Utils
+hex = "0.4"
+chrono = "0.4"
+uuid = { version = "1.10", features = ["v4", "serde"] }
+
+# Testing
+tempfile = "3.14"

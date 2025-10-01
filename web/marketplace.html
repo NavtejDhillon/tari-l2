@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tari L2 Marketplace</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .status.online {
+            background: #10b981;
+            color: white;
+        }
+
+        .status.offline {
+            background: #ef4444;
+            color: white;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .label {
+            font-weight: 600;
+            color: #666;
+        }
+
+        .value {
+            color: #333;
+            font-family: 'Courier New', monospace;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s;
+            margin: 5px;
+        }
+
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .channels-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .channel-item {
+            background: #f8f9fa;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #667eea;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        #response {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .node-selector {
+            margin: 15px 0;
+        }
+
+        select {
+            padding: 10px;
+            border-radius: 5px;
+            border: 2px solid #667eea;
+            font-size: 14px;
+            width: 100%;
+        }
+
+        .coming-soon {
+            background: #fbbf24;
+            color: #78350f;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Tari L2 Marketplace</h1>
+            <p style="margin: 10px 0;">Testnet v0.1.0</p>
+            <span class="status" id="status">Checking...</span>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <h2>📡 Node Connection</h2>
+                <div class="node-selector">
+                    <label class="label">Select Node:</label>
+                    <select id="nodePort">
+                        <option value="18000">Node 1 (Port 18000)</option>
+                        <option value="18001">Node 2 (Port 18001)</option>
+                        <option value="18002">Node 3 (Port 18002)</option>
+                    </select>
+                </div>
+                <div class="info-row">
+                    <span class="label">Host:</span>
+                    <span class="value">127.0.0.1</span>
+                </div>
+                <div class="button-group">
+                    <button onclick="testConnection()">🔍 Test Connection</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>📊 Actions</h2>
+                <div class="button-group">
+                    <button onclick="listChannels()">📋 List Channels</button>
+                    <button onclick="alert('Coming in v0.2.0!')">
+                        ➕ Create Channel
+                        <span class="coming-soon">v0.2.0</span>
+                    </button>
+                    <button onclick="alert('Coming in v0.2.0!')">
+                        🛍️ Create Listing
+                        <span class="coming-soon">v0.2.0</span>
+                    </button>
+                    <button onclick="alert('Coming in v0.2.0!')">
+                        🛒 Create Order
+                        <span class="coming-soon">v0.2.0</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>📦 Channels</h2>
+            <div class="channels-list" id="channelsList">
+                <div class="empty-state">
+                    <div class="empty-state-icon">📭</div>
+                    <p>No channels yet</p>
+                    <p style="font-size: 14px; margin-top: 10px;">
+                        Run: <code>cargo run --example marketplace_demo</code>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>💻 API Response</h2>
+            <div id="response">Ready to send requests...</div>
+        </div>
+    </div>
+
+    <script>
+        const DEFAULT_PORT = 18000;
+
+        function getNodePort() {
+            return document.getElementById('nodePort').value;
+        }
+
+        async function sendRPCRequest(method, params = null) {
+            const port = getNodePort();
+            const request = {
+                jsonrpc: "2.0",
+                method: method,
+                params: params,
+                id: 1
+            };
+
+            try {
+                // Note: This won't work directly from browser due to CORS
+                // You need a proxy or the RPC server needs CORS headers
+                const response = await fetch(`http://127.0.0.1:${port}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(request)
+                });
+
+                const data = await response.json();
+                displayResponse(data);
+                return data;
+            } catch (error) {
+                displayResponse({ error: error.message });
+                console.error('RPC Error:', error);
+                return null;
+            }
+        }
+
+        function displayResponse(data) {
+            const responseDiv = document.getElementById('response');
+            responseDiv.textContent = JSON.stringify(data, null, 2);
+        }
+
+        async function testConnection() {
+            document.getElementById('status').textContent = 'Checking...';
+            document.getElementById('status').className = 'status';
+
+            const result = await sendRPCRequest('list_channels');
+
+            if (result && !result.error) {
+                document.getElementById('status').textContent = '✅ Online';
+                document.getElementById('status').className = 'status online';
+            } else {
+                document.getElementById('status').textContent = '❌ Offline';
+                document.getElementById('status').className = 'status offline';
+            }
+        }
+
+        async function listChannels() {
+            const result = await sendRPCRequest('list_channels');
+
+            if (result && result.result) {
+                const channelsList = document.getElementById('channelsList');
+
+                if (result.result.length === 0) {
+                    channelsList.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📭</div>
+                            <p>No channels found</p>
+                            <p style="font-size: 14px; margin-top: 10px;">
+                                Run: <code>cargo run --example marketplace_demo</code>
+                            </p>
+                        </div>
+                    `;
+                } else {
+                    channelsList.innerHTML = result.result.map((channel, i) => `
+                        <div class="channel-item">
+                            <strong>Channel ${i + 1}</strong>
+                            <pre style="margin-top: 10px; font-size: 11px;">${JSON.stringify(channel, null, 2)}</pre>
+                        </div>
+                    `).join('');
+                }
+            }
+        }
+
+        // Test connection on load
+        window.addEventListener('load', () => {
+            // Show instructions since browser can't directly connect
+            displayResponse({
+                note: "Browser cannot directly connect to RPC due to CORS.",
+                instructions: [
+                    "Use the CLI: cargo run --example marketplace_cli",
+                    "Or use curl: curl -X POST http://127.0.0.1:18000 -d '{...}'",
+                    "Web dashboard coming in v0.2.0 with proper backend"
+                ]
+            });
+        });
+    </script>
+</body>
+</html>

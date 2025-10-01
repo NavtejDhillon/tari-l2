@@ -1,0 +1,27 @@
+[package]
+name = "tari-l2-node"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "tari-l2-node"
+path = "src/main.rs"
+
+[dependencies]
+tari-l2-common = { path = "../common" }
+tari-l2-state-channel = { path = "../state-channel" }
+tari-l2-marketplace = { path = "../marketplace" }
+tari-l2-p2p = { path = "../p2p" }
+tari-l2-rpc = { path = "../rpc" }
+tokio.workspace = true
+async-trait.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+clap = { version = "4.5", features = ["derive"] }
+toml = "0.8"
+
+[dev-dependencies]
+tempfile.workspace = true

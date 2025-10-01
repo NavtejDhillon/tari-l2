@@ -1,0 +1,13 @@
+[package]
+name = "tari-l2-state-channel"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+tari-l2-common = { path = "../common" }
+serde.workspace = true
+serde_json.workspace = true
+bincode.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
