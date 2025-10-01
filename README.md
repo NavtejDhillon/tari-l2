@@ -282,6 +282,13 @@ Built on top of:
 - [Ed25519-dalek](https://github.com/dalek-cryptography/ed25519-dalek) - Digital signatures
 - [BLAKE3](https://github.com/BLAKE3-team/BLAKE3) - Cryptographic hashing
 
+## Donations
+
+If you find this project useful, consider supporting development:
+
+- **Monero (XMR)**: `12EU7KJ9ycjuPsmcf9udAaDPoczfMED7tnCVFUgWkFZmsAdaJr5fNDWPzCZp6pzePo19Udi3d7Q8u2ouYMcw46Qq16F`
+- **Tari**: `12EU7KJ9ycjuPsmcf9udAaDPoczfMED7tnCVFUgWkFZmsAdaJr5fNDWPzCZp6pzePo19Udi3d7Q8u2ouYMcw46Qq16F`
+
 ## Contact
 
 For questions and discussions, please open an issue on GitHub.
