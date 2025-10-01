@@ -286,7 +286,7 @@ Built on top of:
 
 If you find this project useful, consider supporting development:
 
-- **Monero (XMR)**: `12EU7KJ9ycjuPsmcf9udAaDPoczfMED7tnCVFUgWkFZmsAdaJr5fNDWPzCZp6pzePo19Udi3d7Q8u2ouYMcw46Qq16F`
+- **Monero (XMR)**: `48LDSV3jaHaNWSDoWLg2HPGzKFeSThYg3dzKypiMRN68SsNLGURVhsec6XkjHFFk1K8eUfPEQjwS18tfaRMeVXim33Fca2D`
 - **Tari**: `12EU7KJ9ycjuPsmcf9udAaDPoczfMED7tnCVFUgWkFZmsAdaJr5fNDWPzCZp6pzePo19Udi3d7Q8u2ouYMcw46Qq16F`
 
 ## Contact
