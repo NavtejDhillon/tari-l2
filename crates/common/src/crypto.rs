@@ -13,10 +13,26 @@ impl KeyPair {
         Self { signing_key }
     }
 
+    /// Create from private key bytes (32 bytes)
+    pub fn from_private_key(bytes: &[u8]) -> Result<Self, String> {
+        if bytes.len() != 32 {
+            return Err(format!("Invalid key length: expected 32 bytes, got {}", bytes.len()));
+        }
+        let mut key_bytes = [0u8; 32];
+        key_bytes.copy_from_slice(bytes);
+        let signing_key = SigningKey::from_bytes(&key_bytes);
+        Ok(Self { signing_key })
+    }
+
     /// Get the public key
     pub fn public_key(&self) -> PublicKey {
         let verifying_key = self.signing_key.verifying_key();
         PublicKey::new(verifying_key.to_bytes())
+    }
+
+    /// Get private key bytes
+    pub fn to_bytes(&self) -> [u8; 32] {
+        self.signing_key.to_bytes()
     }
 
     /// Sign a message

@@ -7,6 +7,7 @@ use tari_l2_p2p::{P2PNetwork, MessageHandler};
 use tari_l2_rpc::{RpcApi, RpcServer};
 use crate::config::NodeConfig;
 use crate::tari_client::TariClient;
+use tari_l2_l1_client::{TariL1Client, L1Config, TariNetwork};
 use async_trait::async_trait;
 use tari_l2_common::{PublicKey, L2Error};
 use tari_l2_p2p::L2Message;
@@ -18,6 +19,7 @@ pub struct L2Node {
     marketplace: Arc<MarketplaceManager>,
     network: Arc<P2PNetwork>,
     tari_client: Arc<TariClient>,
+    l1_client: Arc<TariL1Client>,
 }
 
 impl L2Node {
@@ -39,11 +41,32 @@ impl L2Node {
                 .map_err(|e| L2Error::DatabaseError(e.to_string()))?
         );
 
-        // Initialize marketplace manager
-        let marketplace = Arc::new(MarketplaceManager::new(storage, keypair.clone()));
+        // Initialize L1 client
+        let l1_config = L1Config {
+            base_node_grpc: "http://127.0.0.1:18142".to_string(),
+            wallet_grpc: None,
+            network: TariNetwork::Esmeralda,
+        };
+        let l1_client = Arc::new(
+            TariL1Client::new(l1_config).await
+                .map_err(|e| L2Error::Unknown(format!("Failed to create L1 client: {}", e)))?
+        );
+
+        // Check L1 connection and log status
+        if l1_client.is_connected().await {
+            info!("✅ Connected to Tari L1 blockchain");
+        } else {
+            info!("⚠️  Running in offline mode - L1 blockchain not available");
+        }
+
+        // Initialize marketplace manager with L1 client
+        let marketplace = Arc::new(MarketplaceManager::new(storage, keypair.clone(), Some(l1_client.clone())));
 
         // Load existing channels
         marketplace.load_channels().await?;
+
+        // Load existing listings from storage
+        marketplace.load_listings().await?;
 
         // Initialize P2P network
         let network = Arc::new(P2PNetwork::new(config.network.clone()));
@@ -60,6 +83,7 @@ impl L2Node {
             marketplace,
             network,
             tari_client,
+            l1_client,
         })
     }
 
@@ -89,7 +113,8 @@ impl L2Node {
             .parse()
             .map_err(|e| L2Error::InvalidParameter(format!("Invalid RPC address: {}", e)))?;
 
-        let api = Arc::new(RpcApi::new(self.marketplace.clone()));
+        let l1_connected = Arc::new(std::sync::atomic::AtomicBool::new(self.l1_client.is_connected().await));
+        let api = Arc::new(RpcApi::new_with_l1(self.marketplace.clone(), l1_connected));
         let rpc_server = RpcServer::new(api, rpc_addr);
 
         tokio::spawn(async move {
@@ -163,6 +188,34 @@ impl MessageHandler for NodeMessageHandler {
                         Ok(Some(L2Message::ChannelInfoResponse { info: None }))
                     }
                 }
+            }
+            L2Message::ListingBroadcast { listing, signature, timestamp } => {
+                info!("📦 Received listing broadcast: {} from {:?}", listing.title, from);
+                match self.marketplace.handle_received_listing(listing, signature, timestamp).await {
+                    Ok(()) => {
+                        info!("✅ Successfully processed listing from P2P network");
+                        Ok(None)
+                    }
+                    Err(e) => {
+                        error!("❌ Failed to process listing: {}", e);
+                        Err(e)
+                    }
+                }
+            }
+            L2Message::ListingsRequest => {
+                let listings = self.marketplace.list_all_listings().await;
+                let listings_only: Vec<_> = listings.into_iter().map(|(_, listing)| listing).collect();
+                Ok(Some(L2Message::ListingsResponse { listings: listings_only }))
+            }
+            L2Message::ListingsResponse { listings } => {
+                info!("📦 Received {} listings from peer", listings.len());
+                for listing in listings {
+                    // Process each listing - using dummy signature/timestamp since these are responses
+                    if let Err(e) = self.marketplace.storage.store_listing(&listing) {
+                        error!("Failed to store listing: {}", e);
+                    }
+                }
+                Ok(None)
             }
             _ => {
                 // Other message types not yet implemented

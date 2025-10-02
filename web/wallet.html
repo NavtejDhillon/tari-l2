@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tari L2 Wallet Setup</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .wallet-setup {
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+
+        .wallet-option {
+            background: var(--card-bg);
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .wallet-option:hover {
+            border-color: var(--primary-color);
+            transform: translateY(-2px);
+        }
+
+        .wallet-option h3 {
+            margin: 0 0 10px 0;
+            color: var(--text-color);
+        }
+
+        .wallet-option p {
+            margin: 0;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .seed-phrase-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin: 20px 0;
+        }
+
+        .seed-word {
+            background: var(--bg-color);
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+            border: 1px solid var(--border-color);
+        }
+
+        .seed-word span {
+            display: block;
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 5px;
+        }
+
+        .warning-box {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            color: #856404;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+
+        .wallet-info {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .wallet-info-item {
+            margin: 15px 0;
+        }
+
+        .wallet-info-item label {
+            display: block;
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 5px;
+        }
+
+        .wallet-info-item .value {
+            font-family: monospace;
+            background: var(--bg-color);
+            padding: 10px;
+            border-radius: 4px;
+            word-break: break-all;
+            position: relative;
+        }
+
+        .copy-btn {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .copy-btn:hover {
+            opacity: 0.8;
+        }
+
+        .step-indicator {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .step-indicator .step {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            line-height: 30px;
+            border-radius: 50%;
+            background: var(--border-color);
+            color: var(--text-secondary);
+            margin: 0 5px;
+        }
+
+        .step-indicator .step.active {
+            background: var(--primary-color);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="wallet-setup">
+        <div class="step-indicator" id="stepIndicator">
+            <span class="step active">1</span>
+            <span class="step">2</span>
+            <span class="step">3</span>
+        </div>
+
+        <!-- Step 1: Choose Option -->
+        <div id="step1" class="step-content">
+            <h2>Welcome to Tari L2 Marketplace</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 30px;">
+                To use the marketplace, you need a Tari wallet. Choose an option below:
+            </p>
+
+            <div class="wallet-option" onclick="createNewWallet()">
+                <h3>🆕 Create New Wallet</h3>
+                <p>Generate a new wallet with a 12-word recovery phrase</p>
+            </div>
+
+            <div class="wallet-option" onclick="showImportOptions()">
+                <h3>📥 Import Existing Wallet</h3>
+                <p>Restore your wallet using a seed phrase or private key</p>
+            </div>
+        </div>
+
+        <!-- Step 2: Import Options -->
+        <div id="step2-import" class="step-content" style="display: none;">
+            <h2>Import Wallet</h2>
+
+            <div class="form-group">
+                <label>Import Method</label>
+                <select id="importMethod" class="form-input" onchange="toggleImportMethod()">
+                    <option value="seed">Seed Phrase (12 words)</option>
+                    <option value="key">Private Key</option>
+                </select>
+            </div>
+
+            <div id="seedImport" class="form-group">
+                <label>Enter your 12-word seed phrase</label>
+                <textarea id="seedPhraseInput" class="form-input" rows="3" placeholder="word1 word2 word3 ..."></textarea>
+            </div>
+
+            <div id="keyImport" class="form-group" style="display: none;">
+                <label>Enter your private key (64 character hex)</label>
+                <input type="text" id="privateKeyInput" class="form-input" placeholder="0123456789abcdef...">
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+                <button class="btn-secondary" onclick="backToStep1()">Back</button>
+                <button class="btn-primary" onclick="importWallet()">Import Wallet</button>
+            </div>
+        </div>
+
+        <!-- Step 2: New Wallet Created -->
+        <div id="step2-created" class="step-content" style="display: none;">
+            <h2>🎉 Wallet Created!</h2>
+
+            <div class="warning-box">
+                <strong>⚠️ Important!</strong> Write down your seed phrase and keep it safe.
+                You'll need it to recover your wallet. Never share it with anyone!
+            </div>
+
+            <div class="wallet-info-item">
+                <label>Your Seed Phrase</label>
+                <div class="seed-phrase-grid" id="seedPhraseDisplay"></div>
+            </div>
+
+            <div class="wallet-info-item">
+                <label>Wallet Address</label>
+                <div class="value" style="position: relative;">
+                    <span id="walletAddress"></span>
+                    <button class="copy-btn" onclick="copyToClipboard('walletAddress')">Copy</button>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="confirmBackup">
+                    I have safely backed up my seed phrase
+                </label>
+            </div>
+
+            <button class="btn-primary" onclick="showProfileSetup()" id="continueToProfileBtn">
+                Continue to Profile Setup
+            </button>
+        </div>
+
+        <!-- Step 2.5: Profile Setup -->
+        <div id="step2-profile" class="step-content" style="display: none;">
+            <h2>👤 Create Your Profile</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                Set up your marketplace profile
+            </p>
+
+            <div class="form-group">
+                <label>Display Name *</label>
+                <input type="text" id="profileName" class="form-input" placeholder="Enter your name" required>
+            </div>
+
+            <div class="form-group">
+                <label>Location</label>
+                <input type="text" id="profileLocation" class="form-input" placeholder="City, Country">
+            </div>
+
+            <div class="form-group">
+                <label>Bio</label>
+                <textarea id="profileBio" class="form-input" rows="3" placeholder="Tell us about yourself..."></textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Email (optional)</label>
+                <input type="email" id="profileEmail" class="form-input" placeholder="your@email.com">
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+                <button class="btn-secondary" onclick="skipProfile()">Skip for Now</button>
+                <button class="btn-primary" onclick="saveProfileAndComplete()">Complete Setup</button>
+            </div>
+        </div>
+
+        <!-- Step 3: Wallet Info -->
+        <div id="step3" class="step-content" style="display: none;">
+            <h2>✅ Wallet Ready!</h2>
+
+            <div class="wallet-info">
+                <div class="wallet-info-item">
+                    <label>Wallet Address</label>
+                    <div class="value" style="position: relative;">
+                        <span id="finalAddress"></span>
+                        <button class="copy-btn" onclick="copyToClipboard('finalAddress')">Copy</button>
+                    </div>
+                </div>
+            </div>
+
+            <p style="color: var(--text-secondary); text-align: center;">
+                Redirecting to marketplace...
+            </p>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script>
+        const RPC_URL = 'http://192.168.86.23:18000';
+        let currentWallet = null;
+
+        // Check if wallet already exists
+        window.onload = async () => {
+            const savedWallet = localStorage.getItem('tari_wallet');
+            if (savedWallet) {
+                window.location.href = 'index.html';
+            }
+        };
+
+        // Enable complete button when checkbox is checked
+        document.getElementById('confirmBackup')?.addEventListener('change', (e) => {
+            document.getElementById('completeBtn').disabled = !e.target.checked;
+        });
+
+        async function rpcCall(method, params = {}) {
+            const response = await fetch(RPC_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    jsonrpc: '2.0',
+                    id: Date.now(),
+                    method,
+                    params
+                })
+            });
+
+            const data = await response.json();
+            if (data.error) throw new Error(data.error.message);
+            return data.result;
+        }
+
+        async function createNewWallet() {
+            try {
+                showLoading(true);
+                const wallet = await rpcCall('wallet_create');
+                currentWallet = wallet;
+
+                // Display seed phrase
+                const seedWords = wallet.seed_phrase.split(' ');
+                const seedDisplay = document.getElementById('seedPhraseDisplay');
+                seedDisplay.innerHTML = seedWords.map((word, i) => `
+                    <div class="seed-word">
+                        <span>${i + 1}</span>
+                        <strong>${word}</strong>
+                    </div>
+                `).join('');
+
+                document.getElementById('walletAddress').textContent = wallet.address;
+
+                showStep('step2-created');
+                updateStepIndicator(2);
+            } catch (error) {
+                showToast('Failed to create wallet: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function showImportOptions() {
+            showStep('step2-import');
+            updateStepIndicator(2);
+        }
+
+        function toggleImportMethod() {
+            const method = document.getElementById('importMethod').value;
+            document.getElementById('seedImport').style.display = method === 'seed' ? 'block' : 'none';
+            document.getElementById('keyImport').style.display = method === 'key' ? 'block' : 'none';
+        }
+
+        async function importWallet() {
+            try {
+                showLoading(true);
+                const method = document.getElementById('importMethod').value;
+                let wallet;
+
+                if (method === 'seed') {
+                    const seedPhrase = document.getElementById('seedPhraseInput').value.trim();
+                    if (!seedPhrase) throw new Error('Please enter your seed phrase');
+                    wallet = await rpcCall('wallet_import_seed', { seed_phrase: seedPhrase });
+                } else {
+                    const privateKey = document.getElementById('privateKeyInput').value.trim();
+                    if (!privateKey) throw new Error('Please enter your private key');
+                    wallet = await rpcCall('wallet_import_key', { private_key: privateKey });
+                }
+
+                currentWallet = wallet;
+                document.getElementById('finalAddress').textContent = wallet.address;
+
+                showStep('step3');
+                updateStepIndicator(3);
+
+                // Save and redirect after 2 seconds
+                setTimeout(() => {
+                    saveWalletAndRedirect();
+                }, 2000);
+            } catch (error) {
+                showToast('Failed to import wallet: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function showProfileSetup() {
+            const checkbox = document.getElementById('confirmBackup');
+            if (!checkbox.checked) {
+                showToast('Please confirm you have backed up your seed phrase', 'error');
+                return;
+            }
+            showStep('step2-profile');
+        }
+
+        function skipProfile() {
+            // Save wallet without profile
+            currentWallet.profile = {
+                name: 'Anonymous',
+                public_key: currentWallet.address
+            };
+            completeSetup();
+        }
+
+        async function saveProfileAndComplete() {
+            const name = document.getElementById('profileName').value.trim();
+            if (!name) {
+                showToast('Please enter your display name', 'error');
+                return;
+            }
+
+            const location = document.getElementById('profileLocation').value.trim();
+            const bio = document.getElementById('profileBio').value.trim();
+            const email = document.getElementById('profileEmail').value.trim();
+
+            // Add profile to wallet
+            currentWallet.profile = {
+                name,
+                location: location || null,
+                bio: bio || null,
+                email: email || null,
+                public_key: currentWallet.address,
+                rating: 0,
+                transactions_completed: 0
+            };
+
+            completeSetup();
+        }
+
+        function completeSetup() {
+            document.getElementById('finalAddress').textContent = currentWallet.address;
+            showStep('step3');
+            updateStepIndicator(3);
+
+            setTimeout(() => {
+                saveWalletAndRedirect();
+            }, 2000);
+        }
+
+        function saveWalletAndRedirect() {
+            localStorage.setItem('tari_wallet', JSON.stringify(currentWallet));
+            if (currentWallet.profile) {
+                localStorage.setItem('tari_profile', JSON.stringify(currentWallet.profile));
+            }
+            window.location.href = 'index.html';
+        }
+
+        function backToStep1() {
+            showStep('step1');
+            updateStepIndicator(1);
+        }
+
+        function showStep(stepId) {
+            document.querySelectorAll('.step-content').forEach(el => el.style.display = 'none');
+            document.getElementById(stepId).style.display = 'block';
+        }
+
+        function updateStepIndicator(step) {
+            document.querySelectorAll('.step-indicator .step').forEach((el, i) => {
+                el.classList.toggle('active', i < step);
+            });
+        }
+
+        function copyToClipboard(elementId) {
+            const text = document.getElementById(elementId).textContent;
+            navigator.clipboard.writeText(text);
+            showToast('Copied to clipboard!', 'success');
+        }
+
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.textContent = message;
+            document.getElementById('toastContainer').appendChild(toast);
+
+            setTimeout(() => toast.classList.add('show'), 100);
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function showLoading(show) {
+            // Simple loading indicator
+            document.body.style.cursor = show ? 'wait' : 'default';
+        }
+    </script>
+</body>
+</html>

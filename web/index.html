@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tari L2 Marketplace</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="header-left">
+                    <h1 class="logo">⚡ Tari L2 Marketplace</h1>
+                    <div class="node-pubkey" id="nodePubkey">
+                        <span class="label">Node:</span>
+                        <span class="pubkey-text">Connecting...</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <div class="wallet-info" onclick="showWalletDetails()" style="cursor: pointer; margin-right: 15px;">
+                        <span style="font-size: 14px; color: var(--text-secondary);">👛</span>
+                        <span id="walletAddress" style="font-family: monospace; font-size: 13px;">Loading...</span>
+                    </div>
+                    <div class="status-indicators">
+                        <div class="status-item" id="nodeStatus">
+                            <div class="status-dot disconnected"></div>
+                            <span class="status-label">Node</span>
+                        </div>
+                        <div class="status-item" id="l1Status">
+                            <div class="status-dot disconnected"></div>
+                            <span class="status-label">L1</span>
+                        </div>
+                        <div class="network-badge" id="networkBadge">
+                            <span>Esmeralda</span>
+                        </div>
+                    </div>
+                    <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+                        <span class="theme-icon">🌙</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <!-- Quick Actions Panel -->
+            <div class="quick-actions">
+                <h3>⚡ Quick Actions</h3>
+                <div class="quick-actions-grid">
+                    <button class="quick-btn" id="quickCreateChannel">
+                        <span class="btn-icon">🔗</span>
+                        Create Test Channel
+                    </button>
+                    <button class="quick-btn" id="quickCreateListing">
+                        <span class="btn-icon">📦</span>
+                        Create Test Listing
+                    </button>
+                    <button class="quick-btn" id="quickRefresh">
+                        <span class="btn-icon">🔄</span>
+                        Refresh All Data
+                    </button>
+                    <button class="quick-btn" onclick="openProfileModal()">
+                        <span class="btn-icon">👤</span>
+                        Edit Profile
+                    </button>
+                    <button class="quick-btn" onclick="exportWallet()">
+                        <span class="btn-icon">💾</span>
+                        Export Wallet
+                    </button>
+                    <button class="quick-btn" onclick="logoutWallet()">
+                        <span class="btn-icon">🚪</span>
+                        Logout
+                    </button>
+                    <button class="quick-btn" id="quickClearConsole">
+                        <span class="btn-icon">🗑️</span>
+                        Clear Console
+                    </button>
+                </div>
+            </div>
+
+            <!-- Navigation Tabs -->
+            <nav class="tabs">
+                <button class="tab-btn active" data-tab="channels">State Channels</button>
+                <button class="tab-btn" data-tab="marketplace">Marketplace</button>
+                <button class="tab-btn" data-tab="orders">Orders</button>
+                <button class="tab-btn" data-tab="debug">Debug/Testing</button>
+            </nav>
+
+            <!-- Tab Content -->
+            <div class="tab-content">
+
+                <!-- State Channels Tab -->
+                <div class="tab-pane active" id="channels-tab">
+                    <div class="section-grid">
+                        <!-- Create Channel Form -->
+                        <div class="card">
+                            <h2 class="card-title">Create State Channel</h2>
+                            <form id="createChannelForm" class="form">
+                                <div class="form-group">
+                                    <label>Participant 1 Public Key</label>
+                                    <div class="input-group">
+                                        <input type="text" id="participant1" class="form-input" placeholder="64-character hex string" pattern="[0-9a-fA-F]{64}" required>
+                                        <button type="button" class="btn-secondary btn-sm" id="genKey1">Generate</button>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Participant 2 Public Key</label>
+                                    <div class="input-group">
+                                        <input type="text" id="participant2" class="form-input" placeholder="64-character hex string" pattern="[0-9a-fA-F]{64}" required>
+                                        <button type="button" class="btn-secondary btn-sm" id="genKey2">Generate</button>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Collateral Amount (µT)</label>
+                                    <input type="number" id="collateral" class="form-input" placeholder="1000000" min="0" step="1" required>
+                                </div>
+                                <button type="submit" class="btn-primary">Create Channel</button>
+                            </form>
+                        </div>
+
+                        <!-- Channels List -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h2 class="card-title">Active Channels</h2>
+                                <button class="btn-icon-only" id="refreshChannels" title="Refresh">🔄</button>
+                            </div>
+                            <div id="channelsList" class="items-list">
+                                <div class="loading">Loading channels...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Marketplace Tab -->
+                <div class="tab-pane" id="marketplace-tab">
+                    <div class="section-grid">
+                        <!-- Create Listing Form -->
+                        <div class="card">
+                            <h2 class="card-title">Create Listing</h2>
+                            <form id="createListingForm" class="form">
+                                <div class="form-group">
+                                    <label>Selling as</label>
+                                    <div class="value" style="background: var(--bg-color); padding: 10px; border-radius: 4px; font-family: monospace;" id="sellerDisplay">
+                                        Loading...
+                                    </div>
+                                    <small class="form-hint">Listings are automatically tied to your wallet</small>
+                                </div>
+                                <div class="form-group">
+                                    <label>Title</label>
+                                    <input type="text" id="listingTitle" class="form-input" placeholder="Product name" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Description</label>
+                                    <textarea id="listingDescription" class="form-input" rows="3" placeholder="Product description" required></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label>Price (µT)</label>
+                                    <input type="number" id="listingPrice" class="form-input" placeholder="100000" min="0" step="1" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Category</label>
+                                    <select id="listingCategory" class="form-input" required>
+                                        <option value="">Select category</option>
+                                        <option value="electronics">Electronics</option>
+                                        <option value="clothing">Clothing</option>
+                                        <option value="books">Books</option>
+                                        <option value="services">Services</option>
+                                        <option value="digital">Digital Goods</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn-primary">Create Listing</button>
+                            </form>
+                        </div>
+
+                        <!-- Listings View -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h2 class="card-title">Active Listings</h2>
+                                <button class="btn-icon-only" id="refreshListings" title="Refresh">🔄</button>
+                            </div>
+                            <div id="listingsList" class="listings-grid">
+                                <div class="loading">Loading listings...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Orders Tab -->
+                <div class="tab-pane" id="orders-tab">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">All Orders</h2>
+                            <button class="btn-icon-only" id="refreshOrders" title="Refresh">🔄</button>
+                        </div>
+                        <div id="ordersList" class="items-list">
+                            <div class="loading">Loading orders...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Debug Tab -->
+                <div class="tab-pane" id="debug-tab">
+                    <div class="section-grid">
+                        <!-- Raw RPC Interface -->
+                        <div class="card">
+                            <h2 class="card-title">Raw RPC Interface</h2>
+                            <form id="rpcForm" class="form">
+                                <div class="form-group">
+                                    <label>RPC Method</label>
+                                    <select id="rpcMethod" class="form-input" required>
+                                        <option value="">Select method</option>
+                                        <option value="get_node_info">get_node_info</option>
+                                        <option value="get_l1_status">get_l1_status</option>
+                                        <option value="list_channels">list_channels</option>
+                                        <option value="create_channel">create_channel</option>
+                                        <option value="get_channel_info">get_channel_info</option>
+                                        <option value="transfer_in_channel">transfer_in_channel</option>
+                                        <option value="close_channel">close_channel</option>
+                                        <option value="create_listing">create_listing</option>
+                                        <option value="get_listings">get_listings</option>
+                                        <option value="create_order">create_order</option>
+                                        <option value="get_orders">get_orders</option>
+                                        <option value="update_order_status">update_order_status</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Parameters (JSON)</label>
+                                    <textarea id="rpcParams" class="form-input code-input" rows="6" placeholder='{"param1": "value1"}'>{}</textarea>
+                                </div>
+                                <button type="submit" class="btn-primary">Execute RPC Call</button>
+                            </form>
+                            <div class="form-group">
+                                <label>Response</label>
+                                <pre id="rpcResponse" class="code-output">No response yet</pre>
+                            </div>
+                        </div>
+
+                        <!-- Test Data Generator -->
+                        <div class="card">
+                            <h2 class="card-title">Test Data Generator</h2>
+                            <div class="test-actions">
+                                <button class="btn-secondary" id="genKeypair">Generate Keypair</button>
+                                <button class="btn-secondary" id="genMultipleChannels">Create 5 Test Channels</button>
+                                <button class="btn-secondary" id="genMultipleListings">Create 10 Test Listings</button>
+                                <button class="btn-secondary" id="genTestOrder">Create Test Order</button>
+                            </div>
+                            <div class="form-group">
+                                <label>Generated Output</label>
+                                <pre id="testOutput" class="code-output">No data generated yet</pre>
+                            </div>
+                        </div>
+
+                        <!-- RPC Console -->
+                        <div class="card full-width">
+                            <div class="card-header">
+                                <h2 class="card-title">RPC Console Log</h2>
+                                <div>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="autoScroll" checked>
+                                        Auto-scroll
+                                    </label>
+                                    <button class="btn-icon-only" id="clearConsole" title="Clear">🗑️</button>
+                                </div>
+                            </div>
+                            <div id="consoleLog" class="console-log"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Toast Notifications Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="spinner"></div>
+        <p>Processing...</p>
+    </div>
+
+    <!-- Profile Edit Modal -->
+    <div id="profileModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit Profile</h2>
+                <button class="modal-close" onclick="closeProfileModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="profileEditForm">
+                    <div class="form-group">
+                        <label>Display Name *</label>
+                        <input type="text" id="editProfileName" class="form-input" placeholder="Your name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Location</label>
+                        <input type="text" id="editProfileLocation" class="form-input" placeholder="City, Country">
+                    </div>
+                    <div class="form-group">
+                        <label>Bio</label>
+                        <textarea id="editProfileBio" class="form-input" rows="3" placeholder="Tell us about yourself..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="editProfileEmail" class="form-input" placeholder="your@email.com">
+                    </div>
+                    <div class="wallet-info-item">
+                        <label>Wallet Address (read-only)</label>
+                        <div class="value" id="profileWalletAddress" style="background: var(--bg-color); padding: 10px; border-radius: 4px; font-family: monospace;">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeProfileModal()">Cancel</button>
+                <button class="btn-primary" onclick="saveProfile()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="test-data.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+data_dir = "./data"
+
+[tari_node]
+address = "127.0.0.1"
+port = 18142
+
+[network]
+listen_addr = "/ip4/0.0.0.0/tcp/0"
+bootstrap_peers = []
+max_peers = 50
+
+[rpc]
+listen_addr = "0.0.0.0"
+port = 18000

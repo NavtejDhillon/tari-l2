@@ -6,6 +6,7 @@ members = [
     "crates/p2p",
     "crates/rpc",
     "crates/common",
+    "crates/l1-client",
 ]
 resolver = "2"
 

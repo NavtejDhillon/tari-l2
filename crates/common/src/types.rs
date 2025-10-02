@@ -10,6 +10,13 @@ impl Hash {
         Self(data)
     }
 
+    pub fn random() -> Self {
+        use rand::RngCore;
+        let mut data = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut data);
+        Self(data)
+    }
+
     pub fn from_slice(slice: &[u8]) -> Result<Self, &'static str> {
         if slice.len() != 32 {
             return Err("Invalid hash length");
@@ -25,6 +32,10 @@ impl Hash {
 
     pub fn to_vec(&self) -> Vec<u8> {
         self.0.to_vec()
+    }
+
+    pub fn to_string(&self) -> String {
+        hex::encode(&self.0)
     }
 }
 

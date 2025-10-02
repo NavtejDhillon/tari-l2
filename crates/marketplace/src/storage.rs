@@ -1,12 +1,13 @@
 use sled::{Db, Tree};
 use tari_l2_common::{Hash, L2Error, error::Result};
-use tari_l2_state_channel::MarketplaceChannel;
+use tari_l2_state_channel::{MarketplaceChannel, state::Listing};
 use std::path::Path;
 
 /// Persistent storage for marketplace state
 pub struct MarketplaceStorage {
     _db: Db,
     channels: Tree,
+    listings: Tree,
 }
 
 impl MarketplaceStorage {
@@ -18,7 +19,10 @@ impl MarketplaceStorage {
         let channels = db.open_tree("channels")
             .map_err(|e| L2Error::DatabaseError(e.to_string()))?;
 
-        Ok(Self { _db: db, channels })
+        let listings = db.open_tree("listings")
+            .map_err(|e| L2Error::DatabaseError(e.to_string()))?;
+
+        Ok(Self { _db: db, channels, listings })
     }
 
     /// Store a channel
@@ -80,6 +84,62 @@ impl MarketplaceStorage {
     /// Get total number of channels
     pub fn channel_count(&self) -> usize {
         self.channels.len()
+    }
+
+    /// Store a listing
+    pub fn store_listing(&self, listing: &Listing) -> Result<()> {
+        let key = listing.id.to_vec();
+        let value = bincode::serialize(listing)
+            .map_err(|e| L2Error::SerializationError(e.to_string()))?;
+
+        self.listings.insert(key, value)
+            .map_err(|e| L2Error::DatabaseError(e.to_string()))?;
+
+        self.listings.flush()
+            .map_err(|e| L2Error::DatabaseError(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// Load a listing by ID
+    pub fn load_listing(&self, listing_id: &Hash) -> Result<Option<Listing>> {
+        let key = listing_id.to_vec();
+
+        match self.listings.get(key)
+            .map_err(|e| L2Error::DatabaseError(e.to_string()))? {
+            Some(value) => {
+                let listing = bincode::deserialize(&value)
+                    .map_err(|e| L2Error::SerializationError(e.to_string()))?;
+                Ok(Some(listing))
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Load all listings
+    pub fn load_all_listings(&self) -> Result<Vec<Listing>> {
+        let mut listings = Vec::new();
+
+        for result in self.listings.iter() {
+            let (_, value) = result.map_err(|e| L2Error::DatabaseError(e.to_string()))?;
+            let listing = bincode::deserialize(&value)
+                .map_err(|e| L2Error::SerializationError(e.to_string()))?;
+            listings.push(listing);
+        }
+
+        Ok(listings)
+    }
+
+    /// Delete a listing
+    pub fn delete_listing(&self, listing_id: &Hash) -> Result<()> {
+        let key = listing_id.to_vec();
+        self.listings.remove(key)
+            .map_err(|e| L2Error::DatabaseError(e.to_string()))?;
+
+        self.listings.flush()
+            .map_err(|e| L2Error::DatabaseError(e.to_string()))?;
+
+        Ok(())
     }
 }
 

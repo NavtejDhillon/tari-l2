@@ -8,7 +8,9 @@ use tari_l2_state_channel::{
     update::SignedStateUpdate,
     state::{Listing, Order, OrderStatus},
 };
+use tari_l2_p2p::P2PNetwork;
 use crate::storage::MarketplaceStorage;
+use crate::escrow::EscrowContract;
 use tracing::info;
 
 /// Manages all marketplace channels and operations
@@ -16,21 +18,50 @@ pub struct MarketplaceManager {
     /// Active channels indexed by channel ID
     channels: Arc<RwLock<HashMap<Hash, MarketplaceChannel>>>,
 
+    /// Global marketplace listings (not tied to specific channels)
+    global_listings: Arc<RwLock<Vec<Listing>>>,
+
+    /// Global orders (tracking purchases across the marketplace)
+    global_orders: Arc<RwLock<Vec<Order>>>,
+
+    /// Escrow contracts indexed by escrow ID
+    escrow_contracts: Arc<RwLock<HashMap<Hash, EscrowContract>>>,
+
     /// Persistent storage
     storage: Arc<MarketplaceStorage>,
 
     /// Node's keypair
     keypair: Arc<KeyPair>,
+
+    /// P2P network for broadcasting listings
+    network: Option<Arc<P2PNetwork>>,
+
+    /// Optional L1 client for blockchain operations
+    l1_client: Option<Arc<tari_l2_l1_client::TariL1Client>>,
 }
 
 impl MarketplaceManager {
     /// Create a new marketplace manager
-    pub fn new(storage: Arc<MarketplaceStorage>, keypair: Arc<KeyPair>) -> Self {
+    pub fn new(
+        storage: Arc<MarketplaceStorage>,
+        keypair: Arc<KeyPair>,
+        l1_client: Option<Arc<tari_l2_l1_client::TariL1Client>>,
+    ) -> Self {
         Self {
             channels: Arc::new(RwLock::new(HashMap::new())),
+            global_listings: Arc::new(RwLock::new(Vec::new())),
+            global_orders: Arc::new(RwLock::new(Vec::new())),
+            escrow_contracts: Arc::new(RwLock::new(HashMap::new())),
             storage,
             keypair,
+            network: None,
+            l1_client,
         }
+    }
+
+    /// Set the P2P network for broadcasting listings
+    pub fn set_network(&mut self, network: Arc<P2PNetwork>) {
+        self.network = Some(network);
     }
 
     /// Load all channels from storage
@@ -50,10 +81,30 @@ impl MarketplaceManager {
 
     /// Create a new channel
     pub async fn create_channel(&self, config: ChannelConfig) -> Result<Hash> {
-        let channel = MarketplaceChannel::new(config);
+        let channel = MarketplaceChannel::new(config.clone());
         let channel_id = channel.channel_id;
 
         info!("Creating channel: {:?}", channel_id);
+
+        // Calculate total collateral
+        let total_collateral: u64 = config.initial_balances.values().map(|a| a.value()).sum();
+
+        // Lock collateral on L1 if client available
+        if let Some(ref l1_client) = self.l1_client {
+            let participants: Vec<String> = config.participants
+                .iter()
+                .map(|pk| format!("{:?}", pk))
+                .collect();
+
+            match l1_client.lock_collateral(channel_id.to_string(), total_collateral, participants).await {
+                Ok(tx_id) => {
+                    info!("✅ Locked {} units of collateral on L1, tx: {}", total_collateral, tx_id);
+                }
+                Err(e) => {
+                    info!("⚠️  Failed to lock collateral on L1: {}. Continuing without L1 lock.", e);
+                }
+            }
+        }
 
         // Store in memory
         let mut channels = self.channels.write().await;
@@ -220,13 +271,304 @@ impl MarketplaceManager {
         let channel = channels.get_mut(channel_id)
             .ok_or_else(|| L2Error::ChannelNotFound(channel_id.to_string()))?;
 
+        // Get final balances before closing
+        let final_balances: HashMap<String, u64> = channel.participants
+            .iter()
+            .filter_map(|participant| {
+                channel.get_balance(participant).ok().map(|balance| {
+                    (format!("{:?}", participant), balance.value())
+                })
+            })
+            .collect();
+
         channel.initiate_close()?;
+
+        // Unlock collateral on L1 if client available
+        if let Some(ref l1_client) = self.l1_client {
+            match l1_client.unlock_collateral(channel_id.to_string(), final_balances.clone()).await {
+                Ok(tx_id) => {
+                    info!("✅ Unlocked collateral on L1, tx: {}", tx_id);
+                }
+                Err(e) => {
+                    info!("⚠️  Failed to unlock collateral on L1: {}", e);
+                }
+            }
+        }
 
         // Persist changes
         self.storage.store_channel(channel)?;
 
         info!("Closing channel: {:?}", channel_id);
         Ok(())
+    }
+
+    /// Get L1 connection status
+    pub fn get_l1_status(&self) -> Option<String> {
+        self.l1_client.as_ref().map(|client| {
+            let status = client.get_status();
+            format!("Network: {:?}, Endpoint: {}, Connected: {}",
+                    status.network, status.endpoint, status.connected)
+        })
+    }
+
+    /// Create a global marketplace listing
+    pub async fn create_global_listing(
+        &self,
+        id: Hash,
+        seller: PublicKey,
+        title: String,
+        description: String,
+        price: u64,
+        ipfs_hash: String,
+    ) -> Result<()> {
+        let listing = Listing {
+            id,
+            seller,
+            title: title.clone(),
+            description,
+            price: Amount::new(price),
+            ipfs_hash,
+            active: true,
+        };
+
+        // Persist to database first
+        self.storage.store_listing(&listing)?;
+
+        // Add to in-memory cache
+        self.global_listings.write().await.push(listing.clone());
+
+        // Broadcast to P2P network
+        if let Some(network) = &self.network {
+            let listing_bytes = bincode::serialize(&listing)
+                .map_err(|e| L2Error::SerializationError(e.to_string()))?;
+            let signature = self.keypair.sign(&listing_bytes);
+            let timestamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+
+            let message = tari_l2_p2p::L2Message::ListingBroadcast {
+                listing,
+                signature,
+                timestamp,
+            };
+
+            network.broadcast_message(message).await
+                .map_err(|e| L2Error::Unknown(format!("Failed to broadcast listing: {}", e)))?;
+
+            info!("✅ Created and broadcast global listing: {} - {}", title, price);
+        } else {
+            info!("⚠️  Created global listing (no P2P network): {} - {}", title, price);
+        }
+
+        Ok(())
+    }
+
+    /// Handle incoming listing from P2P network
+    pub async fn handle_received_listing(&self, listing: Listing, signature: tari_l2_common::Signature, timestamp: u64) -> Result<()> {
+        // Verify signature
+        let listing_bytes = bincode::serialize(&listing)
+            .map_err(|e| L2Error::SerializationError(e.to_string()))?;
+
+        if !listing.seller.verify(&listing_bytes, &signature) {
+            return Err(L2Error::InvalidSignature);
+        }
+
+        // Check if we already have this listing
+        let listings = self.global_listings.read().await;
+        if listings.iter().any(|l| l.id == listing.id) {
+            return Ok(()); // Already have it
+        }
+        drop(listings);
+
+        // Persist to database
+        self.storage.store_listing(&listing)?;
+
+        // Add to in-memory cache
+        self.global_listings.write().await.push(listing.clone());
+
+        info!("📦 Received and stored listing from network: {} (ID: {:?})", listing.title, listing.id);
+
+        Ok(())
+    }
+
+    /// Load all listings from storage
+    pub async fn load_listings(&self) -> Result<()> {
+        let listings = self.storage.load_all_listings()?;
+        let mut global_listings = self.global_listings.write().await;
+        *global_listings = listings;
+        info!("✅ Loaded {} listings from storage", global_listings.len());
+        Ok(())
+    }
+
+    /// List all global marketplace listings
+    pub async fn list_all_listings(&self) -> Vec<(Hash, Listing)> {
+        // Return global listings (channel ID is not meaningful for global listings,
+        // so we use a zero hash as placeholder)
+        let listings = self.global_listings.read().await;
+        listings.iter()
+            .filter(|l| l.active)
+            .map(|l| (Hash::new([0u8; 32]), l.clone()))
+            .collect()
+    }
+
+    /// Get listings for a specific channel
+    pub async fn get_channel_listings(&self, channel_id: &Hash) -> Result<Vec<Listing>> {
+        let channels = self.channels.read().await;
+        let channel = channels.get(channel_id)
+            .ok_or_else(|| L2Error::ChannelNotFound(channel_id.to_string()))?;
+
+        Ok(channel.state.listings.iter()
+            .filter(|l| l.active)
+            .cloned()
+            .collect())
+    }
+
+    /// List all orders across all channels
+    pub async fn list_all_orders(&self) -> Vec<(Hash, Order)> {
+        let channels = self.channels.read().await;
+        let mut all_orders = Vec::new();
+
+        for (channel_id, channel) in channels.iter() {
+            for order in &channel.state.orders {
+                all_orders.push((*channel_id, order.clone()));
+            }
+        }
+
+        all_orders
+    }
+
+    /// Get orders for a specific channel
+    pub async fn get_channel_orders(&self, channel_id: &Hash) -> Result<Vec<Order>> {
+        let channels = self.channels.read().await;
+        let channel = channels.get(channel_id)
+            .ok_or_else(|| L2Error::ChannelNotFound(channel_id.to_string()))?;
+
+        Ok(channel.state.orders.clone())
+    }
+
+    // ===== Escrow Management =====
+
+    /// Create a new escrow contract for a purchase
+    pub async fn create_escrow(
+        &self,
+        listing_id: Hash,
+        buyer: PublicKey,
+        seller: PublicKey,
+        amount: Amount,
+        timeout_period: u64,
+    ) -> Result<Hash> {
+        let escrow = EscrowContract::new(listing_id, buyer, seller, amount, timeout_period);
+        let escrow_id = escrow.id;
+
+        self.escrow_contracts.write().await.insert(escrow_id, escrow);
+        info!("Created escrow contract: {:?}", escrow_id);
+
+        Ok(escrow_id)
+    }
+
+    /// Fund an escrow contract (buyer deposits funds to L1)
+    pub async fn fund_escrow(&self, escrow_id: &Hash, l1_tx_id: String) -> Result<()> {
+        let mut escrows = self.escrow_contracts.write().await;
+        let escrow = escrows.get_mut(escrow_id)
+            .ok_or_else(|| L2Error::Unknown(format!("Escrow not found: {:?}", escrow_id)))?;
+
+        escrow.fund(l1_tx_id).map_err(|e| L2Error::Unknown(e))?;
+        info!("Funded escrow: {:?}", escrow_id);
+
+        Ok(())
+    }
+
+    /// Mark order as shipped (seller confirms shipment)
+    pub async fn ship_order(&self, escrow_id: &Hash, tracking_info: Option<String>) -> Result<()> {
+        let mut escrows = self.escrow_contracts.write().await;
+        let escrow = escrows.get_mut(escrow_id)
+            .ok_or_else(|| L2Error::Unknown(format!("Escrow not found: {:?}", escrow_id)))?;
+
+        escrow.mark_shipped(tracking_info).map_err(|e| L2Error::Unknown(e))?;
+        info!("Marked escrow as shipped: {:?}", escrow_id);
+
+        Ok(())
+    }
+
+    /// Confirm delivery and release funds to seller (buyer confirms receipt)
+    pub async fn confirm_delivery(&self, escrow_id: &Hash) -> Result<()> {
+        let mut escrows = self.escrow_contracts.write().await;
+        let escrow = escrows.get_mut(escrow_id)
+            .ok_or_else(|| L2Error::Unknown(format!("Escrow not found: {:?}", escrow_id)))?;
+
+        escrow.confirm_receipt().map_err(|e| L2Error::Unknown(e))?;
+
+        // TODO: Release funds to seller on L1 when L1 escrow methods are implemented
+        info!("Confirmed delivery and released escrow: {:?}", escrow_id);
+        Ok(())
+    }
+
+    /// Request refund (buyer initiates refund request)
+    pub async fn request_refund(&self, escrow_id: &Hash, reason: String) -> Result<()> {
+        let mut escrows = self.escrow_contracts.write().await;
+        let escrow = escrows.get_mut(escrow_id)
+            .ok_or_else(|| L2Error::Unknown(format!("Escrow not found: {:?}", escrow_id)))?;
+
+        escrow.request_refund(reason).map_err(|e| L2Error::Unknown(e))?;
+        info!("Refund requested for escrow: {:?}", escrow_id);
+
+        Ok(())
+    }
+
+    /// Approve refund (seller agrees to refund)
+    pub async fn approve_refund(&self, escrow_id: &Hash) -> Result<()> {
+        let mut escrows = self.escrow_contracts.write().await;
+        let escrow = escrows.get_mut(escrow_id)
+            .ok_or_else(|| L2Error::Unknown(format!("Escrow not found: {:?}", escrow_id)))?;
+
+        escrow.approve_refund().map_err(|e| L2Error::Unknown(e))?;
+
+        // TODO: Refund to buyer on L1 when L1 escrow methods are implemented
+        info!("Approved refund for escrow: {:?}", escrow_id);
+        Ok(())
+    }
+
+    /// Raise dispute (either party can dispute)
+    pub async fn raise_dispute(&self, escrow_id: &Hash, reason: String) -> Result<()> {
+        let mut escrows = self.escrow_contracts.write().await;
+        let escrow = escrows.get_mut(escrow_id)
+            .ok_or_else(|| L2Error::Unknown(format!("Escrow not found: {:?}", escrow_id)))?;
+
+        escrow.raise_dispute(reason).map_err(|e| L2Error::Unknown(e))?;
+        info!("Dispute raised for escrow: {:?}", escrow_id);
+
+        Ok(())
+    }
+
+    /// Get escrow contract details
+    pub async fn get_escrow(&self, escrow_id: &Hash) -> Result<EscrowContract> {
+        let escrows = self.escrow_contracts.read().await;
+        escrows.get(escrow_id)
+            .cloned()
+            .ok_or_else(|| L2Error::Unknown(format!("Escrow not found: {:?}", escrow_id)))
+    }
+
+    /// List all escrow contracts
+    pub async fn list_escrows(&self) -> Vec<EscrowContract> {
+        self.escrow_contracts.read().await.values().cloned().collect()
+    }
+
+    /// Process timeouts for escrows (auto-release to seller)
+    pub async fn process_escrow_timeouts(&self) -> Result<Vec<Hash>> {
+        let mut escrows = self.escrow_contracts.write().await;
+        let mut released = Vec::new();
+
+        for (escrow_id, escrow) in escrows.iter_mut() {
+            if escrow.is_timed_out() {
+                if let Ok(_) = escrow.auto_release() {
+                    released.push(*escrow_id);
+                    info!("Auto-released timed out escrow: {:?}", escrow_id);
+                }
+            }
+        }
+
+        Ok(released)
     }
 }
 
@@ -240,7 +582,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let storage = Arc::new(MarketplaceStorage::open(temp_dir.path()).unwrap());
         let keypair = Arc::new(KeyPair::generate());
-        let manager = MarketplaceManager::new(storage, keypair.clone());
+        let manager = MarketplaceManager::new(storage, keypair.clone(), None);
 
         let kp2 = KeyPair::generate();
 

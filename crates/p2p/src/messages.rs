@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
-use tari_l2_common::{Hash, PublicKey};
+use tari_l2_common::{Hash, PublicKey, Signature};
 use tari_l2_state_channel::{
     update::SignedStateUpdate,
     channel::ChannelInfo,
+    state::Listing,
 };
 
 /// L2 network message types
@@ -43,6 +44,21 @@ pub enum L2Message {
         info: Option<ChannelInfo>,
     },
 
+    /// Broadcast a new marketplace listing
+    ListingBroadcast {
+        listing: Listing,
+        signature: Signature,
+        timestamp: u64,
+    },
+
+    /// Request all listings from a peer
+    ListingsRequest,
+
+    /// Response with peer's listings
+    ListingsResponse {
+        listings: Vec<Listing>,
+    },
+
     /// Ping message for keepalive
     Ping,
 
@@ -59,6 +75,9 @@ impl L2Message {
             L2Message::StateUpdateAck { .. } => MessageType::StateUpdateAck,
             L2Message::ChannelInfoRequest { .. } => MessageType::ChannelInfoRequest,
             L2Message::ChannelInfoResponse { .. } => MessageType::ChannelInfoResponse,
+            L2Message::ListingBroadcast { .. } => MessageType::ListingBroadcast,
+            L2Message::ListingsRequest => MessageType::ListingsRequest,
+            L2Message::ListingsResponse { .. } => MessageType::ListingsResponse,
             L2Message::Ping => MessageType::Ping,
             L2Message::Pong => MessageType::Pong,
         }
@@ -73,6 +92,9 @@ pub enum MessageType {
     StateUpdateAck,
     ChannelInfoRequest,
     ChannelInfoResponse,
+    ListingBroadcast,
+    ListingsRequest,
+    ListingsResponse,
     Ping,
     Pong,
 }
