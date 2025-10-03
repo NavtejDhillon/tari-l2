@@ -128,26 +128,36 @@ impl Wallet {
     /// Get Tari address (emoji format for Esmeralda testnet)
     pub fn address(&self) -> String {
         use tari_crypto::compressed_key::CompressedKey;
+        use tari_common_types::tari_address::TariAddressFeatures;
 
         // Convert to CompressedPublicKey (which is CompressedKey<RistrettoPublicKey>)
         let compressed_key = CompressedKey::new_from_pk(self.public_spend_key.clone());
 
-        // Create Tari address from public spend key (single address, interactive only)
-        let tari_address = TariAddress::new_single_address_with_interactive_only(compressed_key, Network::Esmeralda)
-            .expect("Failed to create Tari address");
+        // Create Tari address from public spend key (one-sided for mining compatibility)
+        let tari_address = TariAddress::new_single_address(
+            compressed_key,
+            Network::Esmeralda,
+            TariAddressFeatures::create_one_sided_only()
+        ).expect("Failed to create Tari address");
+
         tari_address.to_emoji_string()
     }
 
     /// Get Tari address in hex format
     pub fn address_hex(&self) -> String {
         use tari_crypto::compressed_key::CompressedKey;
+        use tari_common_types::tari_address::TariAddressFeatures;
 
         // Convert to CompressedPublicKey (which is CompressedKey<RistrettoPublicKey>)
         let compressed_key = CompressedKey::new_from_pk(self.public_spend_key.clone());
 
-        // Create Tari address from public spend key (single address, interactive only)
-        let tari_address = TariAddress::new_single_address_with_interactive_only(compressed_key, Network::Esmeralda)
-            .expect("Failed to create Tari address");
+        // Create Tari address from public spend key (one-sided for mining compatibility)
+        let tari_address = TariAddress::new_single_address(
+            compressed_key,
+            Network::Esmeralda,
+            TariAddressFeatures::create_one_sided_only()
+        ).expect("Failed to create Tari address");
+
         tari_address.to_hex()
     }
 
