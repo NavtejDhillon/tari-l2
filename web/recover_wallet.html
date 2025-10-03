@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Recover Wallet Private Key</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container" style="max-width: 800px; margin: 50px auto; padding: 20px;">
+        <h1>🔑 Wallet Recovery Tool</h1>
+
+        <div class="card" style="margin: 20px 0; padding: 20px; background: #f8f9fa; border: 1px solid #dee2e6;">
+            <h3>Check Browser Storage</h3>
+            <button onclick="checkWallet()" class="btn-primary">Check for Saved Wallet</button>
+            <div id="result" style="margin-top: 20px;"></div>
+        </div>
+
+        <div class="card" style="margin: 20px 0; padding: 20px; background: #fff3cd; border: 1px solid #ffc107;">
+            <h3>⚠️ Important</h3>
+            <p>The strings you have (`26033a0e...` and `260324a6...`) are <strong>Tari addresses</strong>, not private keys.</p>
+            <p>To recover your wallet, you need:</p>
+            <ul>
+                <li><strong>Option 1:</strong> The 24-word seed phrase shown when you created the wallet</li>
+                <li><strong>Option 2:</strong> The private key (64 hex characters, different from the address)</li>
+                <li><strong>Option 3:</strong> Check if the wallet is still in your browser's localStorage</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        function checkWallet() {
+            const resultDiv = document.getElementById('result');
+
+            try {
+                const savedWallet = localStorage.getItem('tari_wallet');
+
+                if (!savedWallet) {
+                    resultDiv.innerHTML = `
+                        <div style="padding: 15px; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; color: #721c24;">
+                            <strong>❌ No wallet found in localStorage</strong>
+                            <p>You need to import using your 24-word seed phrase.</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                const wallet = JSON.parse(savedWallet);
+
+                resultDiv.innerHTML = `
+                    <div style="padding: 15px; background: #d4edda; border: 1px solid #c3e6cb; border-radius: 4px; color: #155724;">
+                        <h4>✅ Wallet Found!</h4>
+
+                        <div style="margin: 15px 0;">
+                            <label style="font-weight: bold;">Address (Emoji):</label>
+                            <div style="padding: 10px; background: white; border-radius: 4px; word-break: break-all; margin-top: 5px;">
+                                ${wallet.address || 'N/A'}
+                            </div>
+                        </div>
+
+                        <div style="margin: 15px 0;">
+                            <label style="font-weight: bold;">Address (Hex):</label>
+                            <div style="padding: 10px; background: white; border-radius: 4px; word-break: break-all; margin-top: 5px; font-family: monospace;">
+                                ${wallet.address_hex || 'N/A'}
+                            </div>
+                        </div>
+
+                        ${wallet.private_key ? `
+                        <div style="margin: 15px 0;">
+                            <label style="font-weight: bold;">🔑 Private Key (SAVE THIS!):</label>
+                            <div style="padding: 10px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 4px; word-break: break-all; margin-top: 5px; font-family: monospace;">
+                                ${wallet.private_key}
+                            </div>
+                            <button onclick="copyText('${wallet.private_key}')" style="margin-top: 10px;" class="btn-primary">
+                                Copy Private Key
+                            </button>
+                        </div>
+                        ` : ''}
+
+                        ${wallet.seed_phrase ? `
+                        <div style="margin: 15px 0;">
+                            <label style="font-weight: bold;">🌱 Seed Phrase (24 words - SAVE THIS!):</label>
+                            <div style="padding: 10px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 4px; word-break: break-all; margin-top: 5px;">
+                                ${wallet.seed_phrase}
+                            </div>
+                            <button onclick="copyText('${wallet.seed_phrase}')" style="margin-top: 10px;" class="btn-primary">
+                                Copy Seed Phrase
+                            </button>
+                        </div>
+                        ` : ''}
+
+                        <div style="margin-top: 20px; padding: 15px; background: #d1ecf1; border: 1px solid #bee5eb; border-radius: 4px;">
+                            <strong>📝 Backup Instructions:</strong>
+                            <ol style="margin: 10px 0;">
+                                <li>Copy and save your seed phrase (if available) in a secure location</li>
+                                <li>Copy and save your private key as a backup</li>
+                                <li>Use the seed phrase to import into a new Tari wallet if needed</li>
+                                <li>The hex address is what you use for mining configuration</li>
+                            </ol>
+                        </div>
+                    </div>
+                `;
+            } catch (e) {
+                resultDiv.innerHTML = `
+                    <div style="padding: 15px; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; color: #721c24;">
+                        <strong>❌ Error reading wallet:</strong>
+                        <p>${e.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function copyText(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert('✅ Copied to clipboard!');
+            }).catch(err => {
+                alert('❌ Failed to copy: ' + err);
+            });
+        }
+
+        // Check automatically on load
+        window.onload = checkWallet;
+    </script>
+</body>
+</html>

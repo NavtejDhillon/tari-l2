@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<body>
+<script>
+const wallet = JSON.parse(localStorage.getItem('tari_wallet') || '{}');
+console.log('Emoji Address:', wallet.address);
+console.log('Hex Address:', wallet.address_hex);
+console.log('Public Key:', wallet.public_key);
+document.write('<h3>Wallet Addresses:</h3>');
+document.write('<p><strong>Emoji (use for mining):</strong><br>' + (wallet.address || 'No wallet found') + '</p>');
+document.write('<p><strong>Hex:</strong><br>' + (wallet.address_hex || 'N/A') + '</p>');
+document.write('<p><strong>Public Key:</strong><br>' + (wallet.public_key || 'N/A') + '</p>');
+</script>
+</body>
+</html>
