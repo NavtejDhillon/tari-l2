@@ -21,3 +21,6 @@ config.json
 
 # Logs
 *.log
+
+# Claude Code
+.claude_code_rules
