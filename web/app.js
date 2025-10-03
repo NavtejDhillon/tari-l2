@@ -206,16 +206,7 @@ function initForms() {
         document.getElementById('participant2').value = generateKeyPair();
     });
 
-    // Create Listing Form
-    document.getElementById('createListingForm').addEventListener('submit', handleCreateListing);
-
-    // Display seller info
-    const sellerDisplay = document.getElementById('sellerDisplay');
-    if (sellerDisplay && state.profile) {
-        sellerDisplay.textContent = `${state.profile.name}${state.profile.location ? ' - ' + state.profile.location : ''}`;
-    } else if (sellerDisplay && state.wallet) {
-        sellerDisplay.textContent = truncateHex(state.wallet.address, 8, 8);
-    }
+    // Note: Create Listing Form is now handled via modal (see openCreateListingModal)
 
     // Refresh buttons
     document.getElementById('refreshChannels').addEventListener('click', loadChannels);
@@ -416,8 +407,14 @@ async function handleCreateListing(e) {
         return;
     }
 
+    if (!state.wallet.public_key) {
+        showToast('Wallet missing public key. Please create a new wallet.', 'error');
+        console.error('Wallet state:', state.wallet);
+        return;
+    }
+
     const listing = {
-        seller: state.wallet.address || state.wallet.public_key,
+        seller_pubkey: state.wallet.public_key,  // Use public_key (32 bytes hex) for RPC calls
         title: document.getElementById('listingTitle').value,
         description: document.getElementById('listingDescription').value,
         price: parseInt(document.getElementById('listingPrice').value),
@@ -425,7 +422,7 @@ async function handleCreateListing(e) {
     };
 
     // DEBUG: Log what we're sending
-    console.log('Creating listing with seller:', listing.seller);
+    console.log('Creating listing with seller_pubkey:', listing.seller_pubkey);
     console.log('Wallet object:', state.wallet);
 
     try {
@@ -476,37 +473,73 @@ function getSellerDisplay(seller) {
 function renderListings() {
     const container = document.getElementById('listingsList');
 
-    if (state.listings.length === 0) {
+    // Apply filters
+    const filteredListings = state.listings.filter(listing => {
+        const matchesCategory = state.activeCategory === 'all' || listing.category === state.activeCategory;
+        const matchesSearch = !state.searchQuery ||
+            listing.title.toLowerCase().includes(state.searchQuery.toLowerCase()) ||
+            listing.description.toLowerCase().includes(state.searchQuery.toLowerCase());
+        return matchesCategory && matchesSearch;
+    });
+
+    if (filteredListings.length === 0 && state.listings.length === 0) {
         container.innerHTML =
             '<div class="empty-state"><div class="empty-state-icon">📦</div><div class="empty-state-text">No listings yet</div><div class="empty-state-subtext">Create your first marketplace listing</div></div>';
         return;
     }
 
-    container.innerHTML = state.listings.map(listing => {
+    if (filteredListings.length === 0) {
+        container.innerHTML =
+            '<div class="empty-state"><div class="empty-state-icon">📦</div><div class="empty-state-text">No listings found</div><div class="empty-state-subtext">Try adjusting your filters</div></div>';
+        return;
+    }
+
+    // Get category icon
+    const getCategoryIcon = (category) => {
+        const icons = {
+            electronics: '💻',
+            clothing: '👕',
+            books: '📚',
+            services: '🛠️',
+            digital: '💾',
+            other: '📦'
+        };
+        return icons[category] || '📦';
+    };
+
+    container.innerHTML = filteredListings.map(listing => {
         // DEBUG: Log listing data
         console.log('Rendering listing:', listing);
-        console.log('Listing seller:', listing.seller);
-        console.log('Wallet address:', state.wallet?.address);
-        console.log('Wallet public_key:', state.wallet?.public_key);
 
         const sellerDisplay = getSellerDisplay(listing.seller);
+        const categoryIcon = getCategoryIcon(listing.category);
 
         return `
-        <div class="listing-card">
-            <div class="listing-title">${escapeHtml(listing.title)}</div>
-            <div class="listing-price">${formatMicroTari(listing.price)}</div>
-            <div class="listing-description">${escapeHtml(listing.description)}</div>
-            <div class="listing-meta">
-                <span class="listing-category">${listing.category || 'uncategorized'}</span>
-                <span>Seller: ${sellerDisplay}</span>
-                ${listing.id ? `<span>ID: ${listing.id}</span>` : ''}
+        <div class="listing-card" onclick="showListingDetails('${listing.id}')">
+            <div class="listing-image">
+                ${categoryIcon}
             </div>
-            <div class="item-actions">
-                <button class="btn-primary" onclick="createOrder('${listing.id}')">Buy Now</button>
+            <div class="listing-content">
+                <div class="listing-header">
+                    <span class="listing-category">${listing.category || 'uncategorized'}</span>
+                    <div class="listing-title">${escapeHtml(listing.title)}</div>
+                </div>
+                <div class="listing-description">${escapeHtml(listing.description)}</div>
+                <div class="listing-footer">
+                    <div>
+                        <div class="listing-price">${(listing.price || 0).toLocaleString()} XTM</div>
+                    </div>
+                    <div class="listing-seller" title="${listing.seller}">${sellerDisplay}</div>
+                </div>
             </div>
         </div>
         `;
     }).join('');
+}
+
+function showListingDetails(listingId) {
+    // For now, just trigger buy - can be enhanced to show a detail modal
+    createOrder(listingId);
 }
 
 async function createOrder(listingId) {
@@ -753,7 +786,7 @@ async function checkNodeStatus() {
 
 // Utility Functions
 function formatMicroTari(amount) {
-    return `${(amount || 0).toLocaleString()} µT`;
+    return `${(amount || 0).toLocaleString()} XTM`;
 }
 
 function truncateHex(hex, start = 8, end = 8) {
@@ -871,6 +904,7 @@ function openProfileModal() {
     }
 
     document.getElementById('profileWalletAddress').textContent = state.wallet.address || state.wallet.public_key;
+    document.getElementById('profileWalletAddressHex').textContent = state.wallet.address_hex || '';
     document.getElementById('profileModal').style.display = 'flex';
 }
 
@@ -920,3 +954,267 @@ function saveProfile() {
     closeProfileModal();
     showToast('Profile updated successfully', 'success');
 }
+
+// ==================== Marketplace Modal Functions ====================
+
+function openCreateListingModal() {
+    const modal = document.getElementById('createListingModal');
+    modal.style.display = 'flex';
+
+    // Update seller display
+    const sellerDisplay = document.getElementById('sellerDisplay');
+    if (sellerDisplay && state.profile) {
+        sellerDisplay.textContent = `${state.profile.name}${state.profile.location ? ' - ' + state.profile.location : ''}`;
+    } else if (sellerDisplay && state.wallet) {
+        sellerDisplay.textContent = truncateHex(state.wallet.address, 8, 8);
+    }
+}
+
+function closeCreateListingModal() {
+    const modal = document.getElementById('createListingModal');
+    modal.style.display = 'none';
+    document.getElementById('createListingForm').reset();
+}
+
+async function submitCreateListing() {
+    const form = document.getElementById('createListingForm');
+    if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+    }
+
+    const title = document.getElementById('listingTitle').value;
+    const description = document.getElementById('listingDescription').value;
+    const price = parseInt(document.getElementById('listingPrice').value);
+    const category = document.getElementById('listingCategory').value;
+
+    try {
+        showLoading(true);
+        await state.rpc.call('create_listing', {
+            title,
+            description,
+            price,
+            category,
+            seller: state.wallet?.public_key || state.wallet?.address
+        });
+
+        showToast('Listing created successfully', 'success');
+        closeCreateListingModal();
+        await loadListings();
+    } catch (error) {
+        showToast('Failed to create listing: ' + error.message, 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Close modal when clicking outside
+document.addEventListener('click', (e) => {
+    const modal = document.getElementById('createListingModal');
+    if (e.target === modal) {
+        closeCreateListingModal();
+    }
+});
+
+// ==================== Enhanced Listing Rendering ====================
+
+// Initialize state for filters
+if (!state.activeCategory) state.activeCategory = 'all';
+if (!state.searchQuery) state.searchQuery = '';
+
+// ==================== Search and Filter Functions ====================
+
+function initMarketplaceFilters() {
+    // Category filter buttons
+    const categoryBtns = document.querySelectorAll('.category-btn');
+    categoryBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Update active state
+            categoryBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            // Update filter
+            state.activeCategory = btn.dataset.category;
+            renderListings();
+        });
+    });
+
+    // Search input
+    const searchInput = document.getElementById('searchListings');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            state.searchQuery = e.target.value;
+            renderListings();
+        });
+    }
+}
+
+// Initialize marketplace filters when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initMarketplaceFilters);
+} else {
+    setTimeout(initMarketplaceFilters, 100);
+}
+
+// ==================== Balance Display ====================
+
+async function updateBalanceDisplay() {
+    const balanceAmountEl = document.getElementById('balanceAmount');
+    const balanceDisplayEl = document.getElementById('balanceDisplay');
+
+    if (!balanceAmountEl || !balanceDisplayEl) return;
+
+    try {
+        // Try to get L1 balance using wallet address
+        if (state.wallet && state.wallet.address_hex) {
+            try {
+                // Show scanning progress
+                balanceAmountEl.innerHTML = '<span class="loading-text" style="font-size: 11px;">Connecting...</span>';
+                balanceAmountEl.title = 'Scanning blockchain for UTXOs';
+
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+                balanceAmountEl.innerHTML = '<span class="loading-text" style="font-size: 11px;">Connecting to base node...</span>';
+
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+                balanceAmountEl.innerHTML = '<span class="loading-text" style="font-size: 11px;">Querying blocks...</span>';
+
+                const startTime = Date.now();
+                const l1Result = await state.rpc.call('get_l1_balance', {
+                    address: state.wallet.address_hex
+                });
+
+                const elapsed = Date.now() - startTime;
+
+                // Show scanning progress
+                if (elapsed < 500) {
+                    balanceAmountEl.innerHTML = '<span class="loading-text" style="font-size: 11px;">Scanning UTXOs...</span>';
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                }
+
+                balanceAmountEl.innerHTML = '<span class="loading-text" style="font-size: 11px;">Decrypting outputs...</span>';
+                await new Promise(resolve => setTimeout(resolve, 200));
+
+                balanceAmountEl.innerHTML = '<span class="loading-text" style="font-size: 11px;">Calculating balance...</span>';
+                await new Promise(resolve => setTimeout(resolve, 200));
+
+                if (l1Result && l1Result.balance !== undefined) {
+                    balanceAmountEl.textContent = formatMicroTari(l1Result.balance);
+                    balanceAmountEl.title = 'L1 Balance (from base node UTXO scan, includes mining rewards)';
+                    balanceDisplayEl.style.cursor = 'pointer';
+                    balanceDisplayEl.onclick = showBalanceInfo;
+                    return;
+                }
+            } catch (l1Error) {
+                console.log('L1 balance query failed:', l1Error);
+                // Continue to show 0 balance or L2 balance
+            }
+        }
+
+        // Fallback to L2 channel balance
+        const channels = await state.rpc.call('list_channels');
+
+        if (!channels || channels.length === 0) {
+            balanceAmountEl.innerHTML = '<span class="loading-text">0 XTM</span>';
+            balanceAmountEl.title = 'No L2 channels or L1 balance';
+            balanceDisplayEl.style.cursor = 'pointer';
+            balanceDisplayEl.onclick = showBalanceInfo;
+            return;
+        }
+
+        // Calculate total balance across all L2 channels
+        let totalBalance = 0;
+        for (const channel of channels) {
+            if (channel.balance) {
+                totalBalance += channel.balance;
+            }
+        }
+
+        balanceAmountEl.textContent = formatMicroTari(totalBalance);
+        balanceAmountEl.title = 'L2 Channel Balance';
+        balanceDisplayEl.style.cursor = 'pointer';
+        balanceDisplayEl.onclick = showBalanceInfo;
+    } catch (error) {
+        console.error('Failed to fetch balance:', error);
+        balanceAmountEl.innerHTML = '<span class="loading-text">Error</span>';
+        balanceDisplayEl.style.cursor = 'pointer';
+        balanceDisplayEl.onclick = showBalanceInfo;
+    }
+}
+
+async function showBalanceInfo() {
+    try {
+        // Get L1 status and node info
+        const l1Status = await state.rpc.call('get_l1_status');
+        const nodeInfo = await state.rpc.call('get_node_info');
+        const isL1Connected = l1Status && l1Status.connected;
+
+        // Get wallet info
+        const walletAddress = state.wallet?.address || state.wallet?.public_key || 'Not loaded';
+        const walletName = state.profile?.name || 'Anonymous';
+
+        const message = `💰 Wallet & Balance Information
+
+${isL1Connected ? '✅ Connected to Tari L1 (Esmeralda Testnet)' : '⚠️ L1 Not Connected'}
+
+👤 Your L2 Marketplace Wallet:
+• Name: ${walletName}
+• L2 Address: ${walletAddress}
+
+⚠️ IMPORTANT: This is an L2-only address!
+   This address is for L2 marketplace operations.
+   It cannot receive L1 XTM directly.
+
+🔹 Balance shown: ${state.listings?.length || 0} listings, ${state.channels?.length || 0} channels
+🔹 Network: ${l1Status?.network || 'Unknown'}
+🔹 L1 Endpoint: ${l1Status?.endpoint || 'Not configured'}
+
+🔑 Your L2 Node Public Key:
+${nodeInfo?.public_key || 'Loading...'}
+
+📝 How to get testnet XTM and use this marketplace:
+
+${isL1Connected ?
+`Since L1 is connected:
+
+1. Install Tari Aurora wallet or minotari_console_wallet
+2. Create a proper L1 wallet address
+3. Get testnet XTM from Tari community/faucet
+4. Send XTM to your L1 wallet
+5. Use L1 wallet to lock funds in L2 channels
+6. Trade on this L2 marketplace
+
+💡 Two types of addresses:
+   • L1 Wallet Address: For receiving testnet XTM (base58 format)
+   • L2 Address (this one): For marketplace operations (hex format)
+
+   You need BOTH:
+   - L1 wallet to hold testnet XTM
+   - L2 address (shown above) for marketplace trading` :
+`L1 is not connected. To enable real funds:
+
+1. Add [l1] config in config.toml
+2. Connect to a Tari base node
+3. Install a Tari L1 wallet
+4. Get testnet XTM from faucet
+
+Currently channels use mock collateral.`}
+
+🌐 Get Tari Wallet & Testnet XTM:
+• Download Tari Aurora: https://www.tari.com/downloads/
+• Tari Discord: https://discord.gg/tari
+• Ask for testnet XTM in Discord #testnet channel
+
+⚠️ TESTNET ONLY - No real value`;
+
+        alert(message);
+    } catch (error) {
+        console.error('Error fetching balance info:', error);
+        alert('Balance Information\n\nError loading wallet status. Please check your connection.');
+    }
+}
+
+// Update balance periodically
+setInterval(updateBalanceDisplay, 10000); // Every 10 seconds
+setTimeout(updateBalanceDisplay, 2000);  // Initial load after 2s

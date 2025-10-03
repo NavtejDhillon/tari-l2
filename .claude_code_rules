@@ -1,0 +1,25 @@
+# Claude Code Rules for TariMarket L2
+
+## Communication Style
+- DO NOT use emojis in responses or documentation
+- Be direct and technical
+- Focus on facts and implementation details
+- Avoid unnecessary enthusiasm or celebratory language
+
+## Code Style
+- Follow Rust conventions
+- Use clear, descriptive variable names
+- Add comments only when logic is non-obvious
+- Prefer explicit error handling over unwrap()
+
+## Documentation
+- Write clear, technical documentation
+- No marketing language or hype
+- Focus on "what" and "how", not "exciting features"
+- Use plain language without decorative symbols
+
+## Responses
+- Answer questions directly
+- Don't add preamble or postamble
+- Provide only requested information
+- Be concise but complete

@@ -135,6 +135,74 @@
             background: var(--primary-color);
             color: white;
         }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        .loading-overlay.show {
+            display: flex;
+        }
+
+        .loading-content {
+            background: var(--card-bg);
+            padding: 40px;
+            border-radius: 12px;
+            text-align: center;
+            max-width: 400px;
+        }
+
+        .spinner {
+            width: 60px;
+            height: 60px;
+            margin: 0 auto 20px;
+            border: 4px solid var(--border-color);
+            border-top: 4px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: var(--text-color);
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 10px;
+        }
+
+        .loading-subtext {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: var(--border-color);
+            border-radius: 3px;
+            margin-top: 20px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--primary-color);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
     </style>
 </head>
 <body>
@@ -149,17 +217,17 @@
         <div id="step1" class="step-content">
             <h2>Welcome to Tari L2 Marketplace</h2>
             <p style="color: var(--text-secondary); margin-bottom: 30px;">
-                To use the marketplace, you need a Tari wallet. Choose an option below:
+                Full Tari wallet support. Create a new wallet or import an existing one.
             </p>
 
             <div class="wallet-option" onclick="createNewWallet()">
                 <h3>🆕 Create New Wallet</h3>
-                <p>Generate a new wallet with a 12-word recovery phrase</p>
+                <p>Generate a new Tari wallet with 24-word recovery phrase (works for mining + marketplace)</p>
             </div>
 
             <div class="wallet-option" onclick="showImportOptions()">
                 <h3>📥 Import Existing Wallet</h3>
-                <p>Restore your wallet using a seed phrase or private key</p>
+                <p>Import your wallet using 24-word seed phrase or private key</p>
             </div>
         </div>
 
@@ -176,8 +244,8 @@
             </div>
 
             <div id="seedImport" class="form-group">
-                <label>Enter your 12-word seed phrase</label>
-                <textarea id="seedPhraseInput" class="form-input" rows="3" placeholder="word1 word2 word3 ..."></textarea>
+                <label>Enter your 24-word Tari seed phrase</label>
+                <textarea id="seedPhraseInput" class="form-input" rows="4" placeholder="word1 word2 word3 ... (24 words)"></textarea>
             </div>
 
             <div id="keyImport" class="form-group" style="display: none;">
@@ -281,6 +349,18 @@
     <!-- Toast Notifications -->
     <div id="toastContainer" class="toast-container"></div>
 
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <div class="loading-text" id="loadingText">Creating wallet...</div>
+            <div class="loading-subtext" id="loadingSubtext">Generating cryptographic keys</div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+        </div>
+    </div>
+
     <script>
         const RPC_URL = 'http://192.168.86.23:18000';
         let currentWallet = null;
@@ -317,21 +397,40 @@
 
         async function createNewWallet() {
             try {
-                showLoading(true);
+                showLoading(true, 'Creating wallet...', 'Generating cryptographic keys');
+                updateProgress(20);
+
+                await new Promise(resolve => setTimeout(resolve, 300));
+                updateProgress(40);
+                updateLoadingText('Creating wallet...', 'Deriving Ristretto keypair');
+
                 const wallet = await rpcCall('wallet_create');
+
+                updateProgress(70);
+                updateLoadingText('Creating wallet...', 'Generating seed phrase');
+                await new Promise(resolve => setTimeout(resolve, 200));
+
                 currentWallet = wallet;
 
-                // Display seed phrase
-                const seedWords = wallet.seed_phrase.split(' ');
+                updateProgress(90);
+                updateLoadingText('Creating wallet...', 'Finalizing wallet setup');
+
+                // Display seed phrase (24 words for full Tari wallet)
                 const seedDisplay = document.getElementById('seedPhraseDisplay');
-                seedDisplay.innerHTML = seedWords.map((word, i) => `
-                    <div class="seed-word">
-                        <span>${i + 1}</span>
-                        <strong>${word}</strong>
-                    </div>
-                `).join('');
+                if (wallet.seed_phrase) {
+                    const seedWords = wallet.seed_phrase.split(' ');
+                    seedDisplay.innerHTML = seedWords.map((word, i) => `
+                        <div class="seed-word">
+                            <span>${i + 1}</span>
+                            <strong>${word}</strong>
+                        </div>
+                    `).join('');
+                }
 
                 document.getElementById('walletAddress').textContent = wallet.address;
+
+                updateProgress(100);
+                await new Promise(resolve => setTimeout(resolve, 300));
 
                 showStep('step2-created');
                 updateStepIndicator(2);
@@ -340,6 +439,11 @@
             } finally {
                 showLoading(false);
             }
+        }
+
+        function formatMicroTari(microTari) {
+            const tari = microTari / 1000000;
+            return `${tari.toFixed(6)} XTM`;
         }
 
         function showImportOptions() {
@@ -355,22 +459,36 @@
 
         async function importWallet() {
             try {
-                showLoading(true);
+                showLoading(true, 'Importing wallet...', 'Validating credentials');
+                updateProgress(20);
+
                 const method = document.getElementById('importMethod').value;
                 let wallet;
+
+                await new Promise(resolve => setTimeout(resolve, 300));
+                updateProgress(40);
 
                 if (method === 'seed') {
                     const seedPhrase = document.getElementById('seedPhraseInput').value.trim();
                     if (!seedPhrase) throw new Error('Please enter your seed phrase');
+                    updateLoadingText('Importing wallet...', 'Processing seed phrase');
                     wallet = await rpcCall('wallet_import_seed', { seed_phrase: seedPhrase });
                 } else {
                     const privateKey = document.getElementById('privateKeyInput').value.trim();
                     if (!privateKey) throw new Error('Please enter your private key');
+                    updateLoadingText('Importing wallet...', 'Processing private key');
                     wallet = await rpcCall('wallet_import_key', { private_key: privateKey });
                 }
 
+                updateProgress(70);
+                updateLoadingText('Importing wallet...', 'Restoring wallet state');
+                await new Promise(resolve => setTimeout(resolve, 200));
+
                 currentWallet = wallet;
                 document.getElementById('finalAddress').textContent = wallet.address;
+
+                updateProgress(100);
+                await new Promise(resolve => setTimeout(resolve, 300));
 
                 showStep('step3');
                 updateStepIndicator(3);
@@ -482,9 +600,24 @@
             }, 3000);
         }
 
-        function showLoading(show) {
-            // Simple loading indicator
-            document.body.style.cursor = show ? 'wait' : 'default';
+        function showLoading(show, text = 'Loading...', subtext = 'Please wait') {
+            const overlay = document.getElementById('loadingOverlay');
+            if (show) {
+                updateLoadingText(text, subtext);
+                updateProgress(0);
+                overlay.classList.add('show');
+            } else {
+                overlay.classList.remove('show');
+            }
+        }
+
+        function updateLoadingText(text, subtext) {
+            document.getElementById('loadingText').textContent = text;
+            document.getElementById('loadingSubtext').textContent = subtext;
+        }
+
+        function updateProgress(percent) {
+            document.getElementById('progressFill').style.width = percent + '%';
         }
     </script>
 </body>
