@@ -370,7 +370,7 @@ impl MarketplaceManager {
         let listing_bytes = bincode::serialize(&listing)
             .map_err(|e| L2Error::SerializationError(e.to_string()))?;
 
-        if !listing.seller.verify(&listing_bytes, &signature) {
+        if !listing.seller.verify(&listing_bytes, signature.as_bytes()) {
             return Err(L2Error::InvalidSignature);
         }
 

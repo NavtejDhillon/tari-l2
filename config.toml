@@ -4,8 +4,13 @@ data_dir = "./data"
 address = "127.0.0.1"
 port = 18142
 
+[l1]
+base_node_grpc = "http://127.0.0.1:18142"
+wallet_grpc = "http://127.0.0.1:18143"
+network = "Esmeralda"
+
 [network]
-listen_addr = "/ip4/0.0.0.0/tcp/0"
+listen_addr = "/ip4/0.0.0.0/tcp/9000"
 bootstrap_peers = []
 max_peers = 50
 

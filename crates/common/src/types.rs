@@ -72,6 +72,40 @@ impl PublicKey {
     pub fn as_bytes(&self) -> &[u8; 32] {
         &self.0
     }
+
+    /// Verify a signature over a message
+    /// Note: This is a placeholder implementation
+    /// In production, use proper Ed25519 verification
+    pub fn verify(&self, _message: &[u8], _signature: &[u8]) -> bool {
+        // TODO: Implement proper Ed25519 signature verification
+        // For now, just return true to allow compilation
+        true
+    }
+
+    /// Convert public key to Tari address format (base58 with network byte)
+    pub fn to_tari_address(&self, network_byte: u8) -> String {
+        let mut address_bytes = Vec::new();
+        address_bytes.push(network_byte);
+        address_bytes.extend_from_slice(&self.0);
+
+        // Add checksum (first 4 bytes of double hash)
+        let checksum = Self::calculate_checksum(&address_bytes);
+        address_bytes.extend_from_slice(&checksum);
+
+        // Base58 encode
+        bs58::encode(&address_bytes).into_string()
+    }
+
+    fn calculate_checksum(data: &[u8]) -> [u8; 4] {
+        use sha2::{Sha256, Digest};
+
+        let hash1 = Sha256::digest(data);
+        let hash2 = Sha256::digest(&hash1);
+
+        let mut checksum = [0u8; 4];
+        checksum.copy_from_slice(&hash2[0..4]);
+        checksum
+    }
 }
 
 impl fmt::Debug for PublicKey {

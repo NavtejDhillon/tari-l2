@@ -7,6 +7,7 @@ edition.workspace = true
 tari-l2-common = { path = "../common" }
 tari-l2-state-channel = { path = "../state-channel" }
 tari-l2-l1-client = { path = "../l1-client" }
+tari-l2-p2p = { path = "../p2p" }
 serde.workspace = true
 serde_json.workspace = true
 bincode.workspace = true
@@ -17,6 +18,15 @@ sled.workspace = true
 uuid.workspace = true
 sha2 = "0.10"
 hex = "0.4"
+blake2 = "0.10"
+digest = "0.10"
+# Wallet - use Tari's key manager for proper CipherSeed support
+rand.workspace = true
+tari_common_types = { git = "https://github.com/tari-project/tari", branch = "development" }
+tari_common = { git = "https://github.com/tari-project/tari", branch = "development" }
+tari_crypto = "0.22.1"
+tari_hashing = { git = "https://github.com/tari-project/tari", branch = "development" }
+zeroize = "1.5"
 
 [dev-dependencies]
 tempfile.workspace = true

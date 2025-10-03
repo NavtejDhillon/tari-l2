@@ -19,6 +19,12 @@
                     </div>
                 </div>
                 <div class="header-right">
+                    <div class="balance-display" id="balanceDisplay">
+                        <div class="balance-label">Balance</div>
+                        <div class="balance-amount" id="balanceAmount">
+                            <span class="loading-text">Loading...</span>
+                        </div>
+                    </div>
                     <div class="wallet-info" onclick="showWalletDetails()" style="cursor: pointer; margin-right: 15px;">
                         <span style="font-size: 14px; color: var(--text-secondary);">👛</span>
                         <span id="walletAddress" style="font-family: monospace; font-size: 13px;">Loading...</span>
@@ -115,7 +121,7 @@
                                     </div>
                                 </div>
                                 <div class="form-group">
-                                    <label>Collateral Amount (µT)</label>
+                                    <label>Collateral Amount (XTM)</label>
                                     <input type="number" id="collateral" class="form-input" placeholder="1000000" min="0" step="1" required>
                                 </div>
                                 <button type="submit" class="btn-primary">Create Channel</button>
@@ -137,56 +143,35 @@
 
                 <!-- Marketplace Tab -->
                 <div class="tab-pane" id="marketplace-tab">
-                    <div class="section-grid">
-                        <!-- Create Listing Form -->
-                        <div class="card">
-                            <h2 class="card-title">Create Listing</h2>
-                            <form id="createListingForm" class="form">
-                                <div class="form-group">
-                                    <label>Selling as</label>
-                                    <div class="value" style="background: var(--bg-color); padding: 10px; border-radius: 4px; font-family: monospace;" id="sellerDisplay">
-                                        Loading...
-                                    </div>
-                                    <small class="form-hint">Listings are automatically tied to your wallet</small>
-                                </div>
-                                <div class="form-group">
-                                    <label>Title</label>
-                                    <input type="text" id="listingTitle" class="form-input" placeholder="Product name" required>
-                                </div>
-                                <div class="form-group">
-                                    <label>Description</label>
-                                    <textarea id="listingDescription" class="form-input" rows="3" placeholder="Product description" required></textarea>
-                                </div>
-                                <div class="form-group">
-                                    <label>Price (µT)</label>
-                                    <input type="number" id="listingPrice" class="form-input" placeholder="100000" min="0" step="1" required>
-                                </div>
-                                <div class="form-group">
-                                    <label>Category</label>
-                                    <select id="listingCategory" class="form-input" required>
-                                        <option value="">Select category</option>
-                                        <option value="electronics">Electronics</option>
-                                        <option value="clothing">Clothing</option>
-                                        <option value="books">Books</option>
-                                        <option value="services">Services</option>
-                                        <option value="digital">Digital Goods</option>
-                                        <option value="other">Other</option>
-                                    </select>
-                                </div>
-                                <button type="submit" class="btn-primary">Create Listing</button>
-                            </form>
-                        </div>
-
-                        <!-- Listings View -->
-                        <div class="card">
-                            <div class="card-header">
-                                <h2 class="card-title">Active Listings</h2>
+                    <!-- Marketplace Header -->
+                    <div class="marketplace-header">
+                        <div class="marketplace-toolbar">
+                            <div class="marketplace-search">
+                                <input type="text" id="searchListings" class="search-input" placeholder="🔍 Search marketplace...">
+                            </div>
+                            <div class="marketplace-actions">
+                                <button class="btn-primary" onclick="openCreateListingModal()">
+                                    <span>+ Create Listing</span>
+                                </button>
                                 <button class="btn-icon-only" id="refreshListings" title="Refresh">🔄</button>
                             </div>
-                            <div id="listingsList" class="listings-grid">
-                                <div class="loading">Loading listings...</div>
-                            </div>
                         </div>
+
+                        <!-- Category Filters -->
+                        <div class="category-filters">
+                            <button class="category-btn active" data-category="all">All Items</button>
+                            <button class="category-btn" data-category="electronics">Electronics</button>
+                            <button class="category-btn" data-category="clothing">Clothing</button>
+                            <button class="category-btn" data-category="books">Books</button>
+                            <button class="category-btn" data-category="services">Services</button>
+                            <button class="category-btn" data-category="digital">Digital Goods</button>
+                            <button class="category-btn" data-category="other">Other</button>
+                        </div>
+                    </div>
+
+                    <!-- Listings Grid -->
+                    <div id="listingsList" class="marketplace-grid">
+                        <div class="loading">Loading listings...</div>
                     </div>
                 </div>
 
@@ -310,8 +295,13 @@
                         <input type="email" id="editProfileEmail" class="form-input" placeholder="your@email.com">
                     </div>
                     <div class="wallet-info-item">
-                        <label>Wallet Address (read-only)</label>
-                        <div class="value" id="profileWalletAddress" style="background: var(--bg-color); padding: 10px; border-radius: 4px; font-family: monospace;">
+                        <label>Wallet Address (Emoji Format)</label>
+                        <div class="value" id="profileWalletAddress" style="background: var(--bg-color); padding: 10px; border-radius: 4px; font-family: monospace; font-size: 20px;">
+                        </div>
+                    </div>
+                    <div class="wallet-info-item">
+                        <label>Wallet Address (Hex Format)</label>
+                        <div class="value" id="profileWalletAddressHex" style="background: var(--bg-color); padding: 10px; border-radius: 4px; font-family: monospace; font-size: 11px; word-break: break-all;">
                         </div>
                     </div>
                 </form>
@@ -319,6 +309,55 @@
             <div class="modal-footer">
                 <button class="btn-secondary" onclick="closeProfileModal()">Cancel</button>
                 <button class="btn-primary" onclick="saveProfile()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Listing Modal -->
+    <div id="createListingModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create New Listing</h2>
+                <button class="modal-close" onclick="closeCreateListingModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="createListingForm" class="form">
+                    <div class="form-group">
+                        <label>Selling as</label>
+                        <div class="value" style="background: var(--bg-secondary); padding: 10px; border-radius: 4px; font-family: monospace; font-size: 0.875rem;" id="sellerDisplay">
+                            Loading...
+                        </div>
+                        <small class="form-hint" style="color: var(--text-secondary); font-size: 0.75rem;">Listings are automatically tied to your wallet</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Title *</label>
+                        <input type="text" id="listingTitle" class="form-input" placeholder="Product name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Description *</label>
+                        <textarea id="listingDescription" class="form-input" rows="4" placeholder="Describe your product..." required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Price (XTM) *</label>
+                        <input type="number" id="listingPrice" class="form-input" placeholder="100000" min="0" step="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Category *</label>
+                        <select id="listingCategory" class="form-input" required>
+                            <option value="">Select category</option>
+                            <option value="electronics">Electronics</option>
+                            <option value="clothing">Clothing</option>
+                            <option value="books">Books</option>
+                            <option value="services">Services</option>
+                            <option value="digital">Digital Goods</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeCreateListingModal()">Cancel</button>
+                <button class="btn-primary" onclick="submitCreateListing()">Create Listing</button>
             </div>
         </div>
     </div>

@@ -322,21 +322,322 @@ impl TariL1Client {
         Ok(tx_id.starts_with("mock_"))
     }
 
-    /// Get balance for an address
-    pub async fn get_balance(&self, address: String) -> Result<u64> {
+    /// Get balance from connected wallet
+    pub async fn get_wallet_balance(&self) -> Result<u64> {
         if !self.is_connected().await {
-            warn!("⚠️  Offline mode: Returning mock balance");
-            return Ok(1000000); // Mock balance
+            return Err(anyhow!("Not connected to base node"));
         }
 
-        // TODO: Implement actual balance query
-        // This should:
-        // 1. Connect to wallet gRPC service
-        // 2. Query balance for the given address
-        // 3. Return the balance in Tari units
+        // Get wallet gRPC endpoint
+        let wallet_grpc = match &self.config.wallet_grpc {
+            Some(endpoint) => endpoint,
+            None => {
+                return Err(anyhow!("Wallet gRPC endpoint not configured. Please configure wallet_grpc in config.toml"));
+            }
+        };
 
-        info!("Querying balance for address: {}", address);
-        Ok(1000000) // Mock balance
+        // Connect to wallet gRPC
+        use minotari_wallet_grpc_client::WalletGrpcClient;
+
+        match WalletGrpcClient::connect(wallet_grpc).await {
+            Ok(mut client) => {
+                use minotari_wallet_grpc_client::grpc::GetBalanceRequest;
+                // Empty request - no payment ID filter
+                let request = GetBalanceRequest {
+                    payment_id: None,
+                };
+                match client.get_balance(request).await {
+                    Ok(response) => {
+                        let balance = response.into_inner();
+                        info!("✅ Wallet balance retrieved: {} µT", balance.available_balance);
+                        Ok(balance.available_balance)
+                    }
+                    Err(e) => {
+                        warn!("⚠️  Failed to get wallet balance: {}", e);
+                        Ok(0)
+                    }
+                }
+            }
+            Err(e) => {
+                warn!("⚠️  Failed to connect to wallet gRPC: {}", e);
+                Ok(0)
+            }
+        }
+    }
+
+    /// Create a new wallet address (requires wallet gRPC connection)
+    pub async fn create_wallet_address(&self) -> Result<String> {
+        if !self.is_connected().await {
+            return Err(anyhow!("L1 not connected"));
+        }
+
+        let wallet_grpc = self.config.wallet_grpc.as_ref()
+            .ok_or_else(|| anyhow!("Wallet gRPC not configured"))?;
+
+        info!("Creating new wallet address via: {}", wallet_grpc);
+
+        // Connect to wallet gRPC
+        use minotari_wallet_grpc_client::WalletGrpcClient;
+
+        let mut client = WalletGrpcClient::connect(wallet_grpc).await
+            .map_err(|e| anyhow!("Failed to connect to wallet: {}", e))?;
+
+        use minotari_wallet_grpc_client::grpc::Empty;
+        let request = Empty {};
+        let response = client.get_address(request).await
+            .map_err(|e| anyhow!("Failed to get address: {}", e))?;
+
+        let response_inner = response.into_inner();
+        // Use one_sided_address for L2 operations
+        let address = hex::encode(&response_inner.one_sided_address);
+        info!("✅ Got Tari one-sided address: {}", address);
+        Ok(address)
+    }
+
+    /// Import wallet from seed words (requires wallet gRPC connection)
+    pub async fn import_wallet_from_seed(&self, _seed_words: Vec<String>) -> Result<String> {
+        if !self.is_connected().await {
+            return Err(anyhow!("L1 not connected"));
+        }
+
+        let _wallet_grpc = self.config.wallet_grpc.as_ref()
+            .ok_or_else(|| anyhow!("Wallet gRPC not configured"))?;
+
+        // Wallet seed import is not supported via gRPC API
+        // Users must import seed phrases directly through Tari wallet CLI or Aurora wallet
+        Err(anyhow!("Seed import not supported via gRPC. Please use Tari wallet CLI: 'minotari_console_wallet --seed-words \"your 24 words here\"'"))
+    }
+
+    /// Scan outputs with a private key
+    fn scan_outputs_with_key(
+        outputs: Vec<minotari_app_grpc::tari_rpc::TransactionOutput>,
+        view_key: &tari_crypto::ristretto::RistrettoSecretKey,
+    ) -> Result<u64> {
+        use tari_transaction_components::transaction_components::EncryptedData;
+        use tari_common_types::types::CompressedCommitment;
+        use tari_crypto::tari_utilities::ByteArray;
+
+        let mut total_balance = 0u64;
+        let mut found_count = 0;
+
+        for output in outputs {
+            // Extract commitment - it's a Vec<u8>, not Option<Vec<u8>>
+            let commitment_bytes = &output.commitment;
+
+            // Extract encrypted_data - it's a Vec<u8>, not Option<Vec<u8>>
+            let encrypted_data_bytes = &output.encrypted_data;
+
+            // Parse encrypted data
+            let encrypted_data = match EncryptedData::from_bytes(encrypted_data_bytes) {
+                Ok(data) => data,
+                Err(_) => continue,
+            };
+
+            // Parse commitment
+            let commitment = match CompressedCommitment::from_canonical_bytes(commitment_bytes) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+
+            // Try to decrypt
+            match EncryptedData::decrypt_data(&view_key, &commitment, &encrypted_data) {
+                Ok((value, _private_key, _payment_id)) => {
+                    total_balance += u64::from(value);
+                    found_count += 1;
+                    info!("💰 Found output: {} µT", u64::from(value));
+                },
+                Err(_) => {
+                    // Not our output
+                }
+            }
+        }
+
+        if found_count > 0 {
+            info!("✅ Found {} outputs totaling {} µT", found_count, total_balance);
+        } else {
+            info!("ℹ️  No outputs found for this wallet");
+        }
+
+        Ok(total_balance)
+    }
+
+    /// Get balance for a wallet by scanning UTXOs from base node
+    pub async fn get_balance_with_key(&self, view_key: tari_crypto::ristretto::RistrettoSecretKey) -> Result<u64> {
+        if !self.is_connected().await {
+            warn!("⚠️  Base node not connected, cannot query balance");
+            return Ok(0);
+        }
+
+        info!("🔍 Scanning UTXOs with wallet...");
+
+        use minotari_app_grpc::tari_rpc::base_node_client::BaseNodeClient;
+        use minotari_app_grpc::tari_rpc::{Empty, GetBlocksRequest};
+
+        let mut client = BaseNodeClient::connect(self.config.base_node_grpc.clone()).await?;
+
+        // Get current chain tip
+        let tip_response = client.get_tip_info(Empty {}).await?;
+        let current_height = tip_response.into_inner().metadata
+            .map(|m| m.best_block_height)
+            .unwrap_or(0);
+
+        info!("📊 Scanning blockchain at height {}", current_height);
+
+        // Scan recent blocks for outputs
+        // Scan last 1000 blocks or less if chain is shorter
+        let start_height = if current_height > 1000 { current_height - 1000 } else { 0 };
+
+        info!("🔍 Scanning blocks {} to {}", start_height, current_height);
+
+        let mut all_outputs = Vec::new();
+
+        // Scan in batches of 100 blocks
+        for batch_start in (start_height..=current_height).step_by(100) {
+            let batch_end = std::cmp::min(batch_start + 99, current_height);
+
+            let request = GetBlocksRequest {
+                heights: (batch_start..=batch_end).collect(),
+            };
+
+            match client.get_blocks(request).await {
+                Ok(response) => {
+                    use tokio_stream::StreamExt;
+                    let mut blocks = response.into_inner();
+
+                    while let Some(block) = blocks.next().await {
+                        let block = match block {
+                            Ok(b) => b,
+                            Err(e) => {
+                                warn!("⚠️  Error reading block: {}", e);
+                                continue;
+                            }
+                        };
+                        if let Some(block_data) = &block.block {
+                            if let Some(body) = &block_data.body {
+                                // Collect all outputs from this block
+                                for output in &body.outputs {
+                                    all_outputs.push(output.clone());
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    warn!("⚠️  Failed to get blocks {}-{}: {}", batch_start, batch_end, e);
+                }
+            }
+        }
+
+        info!("🔍 Scanned {} total outputs, checking ownership...", all_outputs.len());
+
+        // Use private key to scan outputs
+        let balance = Self::scan_outputs_with_key(all_outputs, &view_key)?;
+
+        info!("✅ Balance: {} µT", balance);
+
+        Ok(balance)
+    }
+
+    /// Get balance for an address by scanning UTXOs from base node (legacy method)
+    pub async fn get_balance(&self, address: String) -> Result<u64> {
+        if !self.is_connected().await {
+            warn!("⚠️  Base node not connected, cannot query balance");
+            return Ok(0);
+        }
+
+        info!("🔍 Scanning UTXOs for address: {}...", &address[..20]);
+
+        use minotari_app_grpc::tari_rpc::base_node_client::BaseNodeClient;
+        use minotari_app_grpc::tari_rpc::{Empty, GetBlocksRequest};
+
+        let mut client = BaseNodeClient::connect(self.config.base_node_grpc.clone()).await?;
+
+        // Get current chain tip
+        let tip_response = client.get_tip_info(Empty {}).await?;
+        let current_height = tip_response.into_inner().metadata
+            .map(|m| m.best_block_height)
+            .unwrap_or(0);
+
+        info!("📊 Scanning blockchain at height {}", current_height);
+
+        // Parse the Tari address to extract public key
+        let address_bytes = hex::decode(&address)
+            .map_err(|e| anyhow!("Invalid address hex: {}", e))?;
+
+        if address_bytes.len() < 33 {
+            return Err(anyhow!("Address too short"));
+        }
+
+        // Skip network byte (1) and features (1), extract public key (32 bytes)
+        let public_key = &address_bytes[2..34];
+
+        info!("🔑 Looking for outputs to public key: {}", hex::encode(public_key));
+
+        // Scan recent blocks for outputs to this address
+        // Scan last 1000 blocks or less if chain is shorter
+        let start_height = if current_height > 1000 { current_height - 1000 } else { 0 };
+
+        let mut total_balance = 0u64;
+        let mut outputs_found = 0;
+
+        info!("🔍 Scanning blocks {} to {}", start_height, current_height);
+
+        // Scan in batches of 100 blocks
+        for batch_start in (start_height..=current_height).step_by(100) {
+            let batch_end = std::cmp::min(batch_start + 99, current_height);
+
+            let request = GetBlocksRequest {
+                heights: (batch_start..=batch_end).collect(),
+            };
+
+            match client.get_blocks(request).await {
+                Ok(response) => {
+                    use tokio_stream::StreamExt;
+                    let mut blocks = response.into_inner();
+
+                    while let Some(block) = blocks.next().await {
+                        let block = match block {
+                            Ok(b) => b,
+                            Err(e) => {
+                                warn!("⚠️  Error reading block: {}", e);
+                                continue;
+                            }
+                        };
+                        if let Some(block_data) = &block.block {
+                            let block_height = block_data.header.as_ref().map(|h| h.height).unwrap_or(0);
+
+                            if let Some(body) = &block_data.body {
+                                // Check outputs in this block
+                                for output in &body.outputs {
+                                    if let Some(features) = &output.features {
+                                        // Check if this is a coinbase output (output_type == 0 for coinbase)
+                                        if features.output_type == 0 {
+                                            // For now, count all coinbase outputs
+                                            // Proper matching would require commitment verification
+                                            total_balance += features.maturity;
+                                            outputs_found += 1;
+                                            info!("💰 Found coinbase output: {} µT at height {}",
+                                                  features.maturity, block_height);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    warn!("⚠️  Failed to get blocks {}-{}: {}", batch_start, batch_end, e);
+                }
+            }
+        }
+
+        if outputs_found > 0 {
+            info!("✅ Found {} outputs, estimated balance: {} µT", outputs_found, total_balance);
+        } else {
+            info!("ℹ️  No outputs found for this address in recent blocks");
+        }
+
+        Ok(total_balance)
     }
 
     /// Get connection status and info

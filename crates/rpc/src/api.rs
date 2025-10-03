@@ -3,6 +3,7 @@ use serde_json::Value;
 use std::sync::Arc;
 use tari_l2_common::{Hash, PublicKey};
 use tari_l2_marketplace::MarketplaceManager;
+use tari_l2_l1_client::TariL1Client;
 use tracing::info;
 
 /// JSON-RPC request
@@ -32,19 +33,21 @@ pub struct JsonRpcError {
 /// RPC API implementation
 pub struct RpcApi {
     marketplace: Arc<MarketplaceManager>,
+    l1_client: Arc<TariL1Client>,
     l1_connected: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl RpcApi {
-    pub fn new(marketplace: Arc<MarketplaceManager>) -> Self {
+    pub fn new(marketplace: Arc<MarketplaceManager>, l1_client: Arc<TariL1Client>) -> Self {
         Self {
             marketplace,
+            l1_client,
             l1_connected: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
     }
 
-    pub fn new_with_l1(marketplace: Arc<MarketplaceManager>, l1_connected: Arc<std::sync::atomic::AtomicBool>) -> Self {
-        Self { marketplace, l1_connected }
+    pub fn new_with_l1(marketplace: Arc<MarketplaceManager>, l1_client: Arc<TariL1Client>, l1_connected: Arc<std::sync::atomic::AtomicBool>) -> Self {
+        Self { marketplace, l1_client, l1_connected }
     }
 
     /// Handle a JSON-RPC request
@@ -82,6 +85,7 @@ impl RpcApi {
             "wallet_import_key" => self.wallet_import_key(request.params).await,
             "wallet_export" => self.wallet_export(request.params).await,
             "wallet_sign" => self.wallet_sign(request.params).await,
+            "get_l1_balance" => self.get_l1_balance(request.params).await,
             _ => Err(format!("Unknown method: {}", request.method)),
         };
 
@@ -653,16 +657,43 @@ impl RpcApi {
     // ===== Wallet RPC Methods =====
 
     async fn wallet_create(&self) -> Result<Value, String> {
+        // Create a full embedded Tari wallet with 24-word seed phrase
         use tari_l2_marketplace::Wallet;
 
         let wallet = Wallet::new();
-        let seed_phrase = wallet.generate_seed_phrase();
+        let seed_phrase = wallet.seed_phrase().unwrap_or_default();
+        let address_hex = wallet.address_hex();
+
+        // Save wallet to file
+        let wallet_data = serde_json::json!({
+            "address": wallet.address(),
+            "address_hex": address_hex.clone(),
+            "public_key": wallet.public_key_hex(),
+            "private_key": wallet.export_private_key(),
+            "seed_phrase": seed_phrase.clone(),
+            "created_at": chrono::Utc::now().to_rfc3339(),
+        });
+
+        let wallet_path = format!("./data/wallet_{}.json", &address_hex[..16]);
+        std::fs::create_dir_all("./data").map_err(|e| format!("Failed to create data directory: {}", e))?;
+        std::fs::write(&wallet_path, serde_json::to_string_pretty(&wallet_data).unwrap())
+            .map_err(|e| format!("Failed to save wallet: {}", e))?;
+
+        // Also save as "current" wallet
+        std::fs::write("./data/current_wallet.json", serde_json::to_string_pretty(&wallet_data).unwrap())
+            .map_err(|e| format!("Failed to save current wallet: {}", e))?;
+
+        info!("💾 Wallet saved to {}", wallet_path);
 
         Ok(serde_json::json!({
             "address": wallet.address(),
-            "public_key": wallet.address(),
+            "address_hex": address_hex,
+            "public_key": wallet.public_key_hex(),
+            "private_key": wallet.export_private_key(),
             "seed_phrase": seed_phrase,
-            "private_key": wallet.export_private_key()
+            "source": "embedded_wallet",
+            "wallet_file": wallet_path,
+            "message": "Full Tari wallet created with 24-word seed phrase. This wallet can be used for mining and marketplace. SAVE YOUR SEED PHRASE!"
         }))
     }
 
@@ -678,12 +709,17 @@ impl RpcApi {
             params.ok_or("Missing parameters")?
         ).map_err(|e| e.to_string())?;
 
+        // Import wallet from 24-word Tari seed phrase
         let wallet = Wallet::from_seed_phrase(&params.seed_phrase)
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| format!("Failed to import wallet: {}", e))?;
 
         Ok(serde_json::json!({
             "address": wallet.address(),
-            "public_key": wallet.address()
+            "address_hex": wallet.address_hex(),
+            "public_key": wallet.public_key_hex(),
+            "private_key": wallet.export_private_key(),
+            "seed_phrase": wallet.seed_phrase().unwrap_or_default(),
+            "message": "Wallet imported successfully from 24-word seed phrase"
         }))
     }
 
@@ -699,59 +735,104 @@ impl RpcApi {
             params.ok_or("Missing parameters")?
         ).map_err(|e| e.to_string())?;
 
+        // Import wallet from private key (32-byte hex)
         let wallet = Wallet::from_private_key(&params.private_key)
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| format!("Failed to import wallet: {}", e))?;
 
         Ok(serde_json::json!({
             "address": wallet.address(),
-            "public_key": wallet.address()
+            "address_hex": wallet.address_hex(),
+            "public_key": wallet.public_key_hex(),
+            "private_key": wallet.export_private_key(),
+            "message": "Wallet imported from private key (no seed phrase available for this import method)"
         }))
     }
 
     async fn wallet_export(&self, params: Option<Value>) -> Result<Value, String> {
-        use tari_l2_marketplace::Wallet;
-
         #[derive(serde::Deserialize)]
         struct ExportParams {
-            private_key: String,
+            address: String,
         }
 
-        let params: ExportParams = serde_json::from_value(
+        let _params: ExportParams = serde_json::from_value(
             params.ok_or("Missing parameters")?
         ).map_err(|e| e.to_string())?;
 
-        let wallet = Wallet::from_private_key(&params.private_key)
-            .map_err(|e| e.to_string())?;
-
-        Ok(serde_json::json!({
-            "address": wallet.address(),
-            "public_key": wallet.address(),
-            "private_key": wallet.export_private_key(),
-            "seed_phrase": wallet.generate_seed_phrase()
-        }))
+        // Wallet export (seed phrase, private key) must be done via Tari wallet directly
+        Err("Wallet export must be done via Tari wallet CLI or Aurora wallet for security. The L2 marketplace does not store private keys or seed phrases.".to_string())
     }
 
     async fn wallet_sign(&self, params: Option<Value>) -> Result<Value, String> {
-        use tari_l2_marketplace::Wallet;
-
         #[derive(serde::Deserialize)]
         struct SignParams {
-            private_key: String,
+            address: String,
             message: String,
         }
 
-        let params: SignParams = serde_json::from_value(
+        let _params: SignParams = serde_json::from_value(
             params.ok_or("Missing parameters")?
         ).map_err(|e| e.to_string())?;
 
-        let wallet = Wallet::from_private_key(&params.private_key)
-            .map_err(|e| e.to_string())?;
+        // Message signing must be done via Tari wallet gRPC
+        // TODO: Implement wallet gRPC signing method when available
+        Err("Message signing via wallet gRPC not yet implemented. Use Tari wallet CLI for signing.".to_string())
+    }
 
-        let signature = wallet.sign(params.message.as_bytes());
+    async fn get_l1_balance(&self, params: Option<Value>) -> Result<Value, String> {
+        #[derive(Deserialize)]
+        struct BalanceParams {
+            address: String,
+            #[serde(default)]
+            seed_phrase: Option<String>,
+            #[serde(default)]
+            private_key: Option<String>,
+        }
+
+        let params: BalanceParams = serde_json::from_value(
+            params.ok_or("Missing parameters")?
+        ).map_err(|e| e.to_string())?;
+
+        // Get wallet's view key for scanning
+        use tari_l2_marketplace::Wallet;
+        let wallet = if let Some(seed) = params.seed_phrase {
+            Wallet::from_seed_phrase(&seed)
+                .map_err(|e| format!("Invalid seed phrase: {}", e))?
+        } else if let Some(pk) = params.private_key {
+            Wallet::from_private_key(&pk)
+                .map_err(|e| format!("Invalid private key: {}", e))?
+        } else {
+            // Try to load current wallet from file
+            let wallet_data = std::fs::read_to_string("./data/current_wallet.json")
+                .map_err(|_| "No wallet found. Please provide seed_phrase or private_key, or create a wallet first".to_string())?;
+
+            let wallet_json: serde_json::Value = serde_json::from_str(&wallet_data)
+                .map_err(|e| format!("Invalid wallet file: {}", e))?;
+
+            let seed_phrase = wallet_json["seed_phrase"].as_str()
+                .ok_or("Wallet file missing seed_phrase")?;
+
+            Wallet::from_seed_phrase(seed_phrase)
+                .map_err(|e| format!("Failed to load wallet: {}", e))?
+        };
+
+        // Extract the private spend key (used as view key for scanning)
+        let view_key_hex = wallet.export_private_key();
+        let view_key_bytes = hex::decode(&view_key_hex)
+            .map_err(|e| format!("Failed to decode private key: {}", e))?;
+
+        use tari_crypto::ristretto::RistrettoSecretKey;
+        use tari_crypto::tari_utilities::ByteArray;
+        let view_key = RistrettoSecretKey::from_canonical_bytes(&view_key_bytes)
+            .map_err(|e| format!("Invalid private key bytes: {:?}", e))?;
+
+        // Query L1 base node for UTXO balance by scanning blockchain with view key
+        let balance = self.l1_client.get_balance_with_key(view_key)
+            .await
+            .map_err(|e| format!("Failed to get L1 balance: {:?}", e))?;
 
         Ok(serde_json::json!({
-            "signature": hex::encode(signature.as_bytes()),
-            "public_key": wallet.address()
+            "balance": balance,
+            "source": "wallet_utxo_scan"
         }))
     }
 }

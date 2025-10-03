@@ -14,3 +14,5 @@ thiserror.workspace = true
 hex.workspace = true
 chrono.workspace = true
 rand.workspace = true
+bs58 = "0.5"
+sha2 = "0.10"

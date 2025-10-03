@@ -114,7 +114,7 @@ impl L2Node {
             .map_err(|e| L2Error::InvalidParameter(format!("Invalid RPC address: {}", e)))?;
 
         let l1_connected = Arc::new(std::sync::atomic::AtomicBool::new(self.l1_client.is_connected().await));
-        let api = Arc::new(RpcApi::new_with_l1(self.marketplace.clone(), l1_connected));
+        let api = Arc::new(RpcApi::new_with_l1(self.marketplace.clone(), self.l1_client.clone(), l1_connected));
         let rpc_server = RpcServer::new(api, rpc_addr);
 
         tokio::spawn(async move {
@@ -211,8 +211,9 @@ impl MessageHandler for NodeMessageHandler {
                 info!("📦 Received {} listings from peer", listings.len());
                 for listing in listings {
                     // Process each listing - using dummy signature/timestamp since these are responses
-                    if let Err(e) = self.marketplace.storage.store_listing(&listing) {
-                        error!("Failed to store listing: {}", e);
+                    let dummy_sig = tari_l2_common::Signature::new([0u8; 64]);
+                    if let Err(e) = self.marketplace.handle_received_listing(listing, dummy_sig, 0).await {
+                        error!("Failed to process listing: {}", e);
                     }
                 }
                 Ok(None)

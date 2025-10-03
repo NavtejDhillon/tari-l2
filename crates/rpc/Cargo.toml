@@ -7,6 +7,7 @@ edition.workspace = true
 tari-l2-common = { path = "../common" }
 tari-l2-state-channel = { path = "../state-channel" }
 tari-l2-marketplace = { path = "../marketplace" }
+tari-l2-l1-client = { path = "../l1-client" }
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
@@ -17,6 +18,8 @@ prost.workspace = true
 hex.workspace = true
 hyper = { version = "0.14", features = ["full"] }
 http-body-util = "0.1"
+tari_crypto = "0.22.1"
+chrono = "0.4"
 
 [build-dependencies]
 tonic-build = "0.12"
