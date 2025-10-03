@@ -28,6 +28,8 @@ pub struct Wallet {
     cipher_seed: CipherSeed,
     spend_key: PrivateKey,
     public_spend_key: PublicKey,
+    view_key: PrivateKey,
+    public_view_key: PublicKey,
     seed_words: Option<SeedWords>,
 }
 
@@ -72,27 +74,38 @@ impl Wallet {
         // This matches the key derivation in tari_key_manager.rs
         const WALLET_BRANCH: &str = "wallet";
         const SPEND_KEY_INDEX: u64 = 0;
+        const VIEW_KEY_INDEX: u64 = 1;
 
-        // Build the key material to hash
+        // Derive spend key
         let mut key_material = Vec::new();
         key_material.extend_from_slice(KeyManagerDomain::domain_separation_tag("derive_key").as_bytes());
         key_material.extend_from_slice(cipher_seed.entropy());
         key_material.extend_from_slice(WALLET_BRANCH.as_bytes());
         key_material.extend_from_slice(&SPEND_KEY_INDEX.to_le_bytes());
 
-        // Hash to derive the key using Blake2b-512 for 64 bytes output
         let derive_key = Blake2b::<U64>::digest(&key_material);
-
-        // Create private key from the hash using from_uniform_bytes (same as Tari)
         let spend_key = PrivateKey::from_uniform_bytes(derive_key.as_ref())
             .map_err(|e| format!("Failed to create spend key: {:?}", e))?;
-
         let public_spend_key = PubKeyTrait::from_secret_key(&spend_key);
+
+        // Derive view key
+        let mut key_material = Vec::new();
+        key_material.extend_from_slice(KeyManagerDomain::domain_separation_tag("derive_key").as_bytes());
+        key_material.extend_from_slice(cipher_seed.entropy());
+        key_material.extend_from_slice(WALLET_BRANCH.as_bytes());
+        key_material.extend_from_slice(&VIEW_KEY_INDEX.to_le_bytes());
+
+        let derive_key = Blake2b::<U64>::digest(&key_material);
+        let view_key = PrivateKey::from_uniform_bytes(derive_key.as_ref())
+            .map_err(|e| format!("Failed to create view key: {:?}", e))?;
+        let public_view_key = PubKeyTrait::from_secret_key(&view_key);
 
         Ok(Self {
             cipher_seed,
             spend_key,
             public_spend_key,
+            view_key,
+            public_view_key,
             seed_words,
         })
     }
@@ -114,6 +127,10 @@ impl Wallet {
             .map_err(|e| format!("Failed to create private key: {:?}", e))?;
         let public_spend_key = PubKeyTrait::from_secret_key(&spend_key);
 
+        // Generate a random view key (since we only have spend key)
+        let view_key = PrivateKey::random(&mut rand::thread_rng());
+        let public_view_key = PubKeyTrait::from_secret_key(&view_key);
+
         // Create a dummy cipher seed (won't be usable for mnemonic export)
         let cipher_seed = CipherSeed::new();
 
@@ -121,6 +138,8 @@ impl Wallet {
             cipher_seed,
             spend_key,
             public_spend_key,
+            view_key,
+            public_view_key,
             seed_words: None,
         })
     }
@@ -130,14 +149,17 @@ impl Wallet {
         use tari_crypto::compressed_key::CompressedKey;
         use tari_common_types::tari_address::TariAddressFeatures;
 
-        // Convert to CompressedPublicKey (which is CompressedKey<RistrettoPublicKey>)
-        let compressed_key = CompressedKey::new_from_pk(self.public_spend_key.clone());
+        // Convert to compressed keys
+        let compressed_view_key = CompressedKey::new_from_pk(self.public_view_key.clone());
+        let compressed_spend_key = CompressedKey::new_from_pk(self.public_spend_key.clone());
 
-        // Create Tari address from public spend key (one-sided for mining compatibility)
-        let tari_address = TariAddress::new_single_address(
-            compressed_key,
+        // Create dual address (view + spend keys) for mining compatibility
+        let tari_address = TariAddress::new_dual_address(
+            compressed_view_key,
+            compressed_spend_key,
             Network::Esmeralda,
-            TariAddressFeatures::create_one_sided_only()
+            TariAddressFeatures::create_one_sided_only(),
+            None  // No payment ID
         ).expect("Failed to create Tari address");
 
         tari_address.to_emoji_string()
@@ -148,14 +170,17 @@ impl Wallet {
         use tari_crypto::compressed_key::CompressedKey;
         use tari_common_types::tari_address::TariAddressFeatures;
 
-        // Convert to CompressedPublicKey (which is CompressedKey<RistrettoPublicKey>)
-        let compressed_key = CompressedKey::new_from_pk(self.public_spend_key.clone());
+        // Convert to compressed keys
+        let compressed_view_key = CompressedKey::new_from_pk(self.public_view_key.clone());
+        let compressed_spend_key = CompressedKey::new_from_pk(self.public_spend_key.clone());
 
-        // Create Tari address from public spend key (one-sided for mining compatibility)
-        let tari_address = TariAddress::new_single_address(
-            compressed_key,
+        // Create dual address (view + spend keys) for mining compatibility
+        let tari_address = TariAddress::new_dual_address(
+            compressed_view_key,
+            compressed_spend_key,
             Network::Esmeralda,
-            TariAddressFeatures::create_one_sided_only()
+            TariAddressFeatures::create_one_sided_only(),
+            None  // No payment ID
         ).expect("Failed to create Tari address");
 
         tari_address.to_hex()
