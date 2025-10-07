@@ -25,3 +25,8 @@ config.json
 # Claude Code
 .claude_code_rules
 
+# Test and debug files
+web/test-*.html
+web/debug-*.html
+config2.toml
+data2/
