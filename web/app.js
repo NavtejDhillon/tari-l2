@@ -1,6 +1,6 @@
 // RPC Client Class
 class RPCClient {
-    constructor(url = 'http://192.168.86.23:18000') {
+    constructor(url = 'http://192.168.86.208:18000') {
         this.url = url;
         this.requestId = 0;
     }
@@ -543,6 +543,14 @@ function showListingDetails(listingId) {
 }
 
 async function createOrder(listingId) {
+    // Prevent buying own listing
+    const listing = state.listings.find(l => l.id === listingId);
+    if (listing && state.wallet && 
+        (listing.seller === state.wallet.public_key || listing.seller === state.wallet.address)) {
+        showToast('You cannot purchase your own listing', 'error');
+        return;
+    }
+    
     const buyerPubkey = prompt('Enter buyer public key (or leave empty to generate):');
     const pubkey = buyerPubkey || generateKeyPair();
 

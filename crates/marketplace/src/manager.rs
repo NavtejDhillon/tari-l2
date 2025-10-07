@@ -320,6 +320,7 @@ impl MarketplaceManager {
         description: String,
         price: u64,
         ipfs_hash: String,
+        category: String,
     ) -> Result<()> {
         let listing = Listing {
             id,
@@ -329,6 +330,7 @@ impl MarketplaceManager {
             price: Amount::new(price),
             ipfs_hash,
             active: true,
+            category,
         };
 
         // Persist to database first

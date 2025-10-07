@@ -42,11 +42,16 @@ impl L2Node {
         );
 
         // Initialize L1 client
-        let l1_config = L1Config {
-            base_node_grpc: "http://127.0.0.1:18142".to_string(),
-            wallet_grpc: None,
-            network: TariNetwork::Esmeralda,
-        };
+        let l1_config = config.l1.clone().unwrap_or_else(|| {
+            info!("L1 config not found in config file, using tari_node address");
+            L1Config {
+                base_node_grpc: format!("http://{}:{}", config.tari_node.address, config.tari_node.port),
+                wallet_grpc: None,
+                network: TariNetwork::Esmeralda,
+            }
+        });
+        info!("L1 client configuration: base_node_grpc={}, wallet_grpc={:?}, network={:?}",
+            l1_config.base_node_grpc, l1_config.wallet_grpc, l1_config.network);
         let l1_client = Arc::new(
             TariL1Client::new(l1_config).await
                 .map_err(|e| L2Error::Unknown(format!("Failed to create L1 client: {}", e)))?

@@ -59,6 +59,7 @@ pub struct Listing {
     pub price: Amount,
     pub ipfs_hash: String,  // For images and additional data
     pub active: bool,
+    pub category: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

@@ -1,12 +1,12 @@
 data_dir = "./data"
 
 [tari_node]
-address = "127.0.0.1"
+address = "192.168.86.207"
 port = 18142
 
 [l1]
-base_node_grpc = "http://127.0.0.1:18142"
-wallet_grpc = "http://127.0.0.1:18143"
+base_node_grpc = "http://192.168.86.207:18142"
+wallet_grpc = "http://192.168.86.207:18143"
 network = "Esmeralda"
 
 [network]

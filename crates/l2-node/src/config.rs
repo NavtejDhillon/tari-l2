@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tari_l2_p2p::NetworkConfig;
+use tari_l2_l1_client::L1Config;
 
 /// Configuration for the L2 node
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -10,6 +11,10 @@ pub struct NodeConfig {
 
     /// Tari node connection
     pub tari_node: TariNodeConfig,
+    
+    /// L1 blockchain configuration
+    #[serde(default)]
+    pub l1: Option<L1Config>,
 
     /// P2P network configuration
     pub network: NetworkConfig,
@@ -44,6 +49,7 @@ impl Default for NodeConfig {
                 address: "127.0.0.1".to_string(),
                 port: 18142,
             },
+            l1: None,
             network: NetworkConfig::default(),
             rpc: RpcConfig {
                 listen_addr: "127.0.0.1".to_string(),

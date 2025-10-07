@@ -254,6 +254,7 @@ impl RpcApi {
             description: String,
             price: u64,
             ipfs_hash: Option<String>,
+            category: Option<String>,
         }
 
         let params: CreateListingParams = serde_json::from_value(
@@ -276,6 +277,7 @@ impl RpcApi {
             params.description.clone(),
             params.price,
             params.ipfs_hash.unwrap_or_else(|| "QmPending".to_string()),
+            params.category.unwrap_or_else(|| "other".to_string()),
         ).await.map_err(|e| e.to_string())?;
 
         Ok(serde_json::json!({
@@ -299,7 +301,8 @@ impl RpcApi {
                 "description": listing.description,
                 "price": listing.price.value(),
                 "ipfs_hash": listing.ipfs_hash,
-                "active": listing.active
+                "active": listing.active,
+                "category": listing.category
             })
         }).collect();
 
