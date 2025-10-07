@@ -101,6 +101,9 @@ impl L2Node {
 
         // Start P2P network
         self.network.start().await?;
+        // Connect marketplace to P2P network for broadcasting
+        self.marketplace.set_network(self.network.clone()).await;
+
 
         // Start message processing
         let network = self.network.clone();

@@ -249,7 +249,7 @@ impl RpcApi {
     async fn create_listing(&self, params: Option<Value>) -> Result<Value, String> {
         #[derive(serde::Deserialize)]
         struct CreateListingParams {
-            seller_pubkey: String,
+            seller_pubkey: Option<String>,
             title: String,
             description: String,
             price: u64,
@@ -261,16 +261,21 @@ impl RpcApi {
             params.ok_or("Missing parameters")?
         ).map_err(|e| e.to_string())?;
 
-        let seller_bytes = hex::decode(&params.seller_pubkey)
-            .map_err(|e| format!("Invalid seller_pubkey hex: {}", e))?;
-        let seller = PublicKey::from_slice(&seller_bytes)
-            .map_err(|e| e.to_string())?;
+        // Use provided seller_pubkey or default to node's own public key
+        let seller = if let Some(seller_pubkey) = params.seller_pubkey {
+            let seller_bytes = hex::decode(&seller_pubkey)
+                .map_err(|e| format!("Invalid seller_pubkey hex: {}", e))?;
+            PublicKey::from_slice(&seller_bytes)
+                .map_err(|e| e.to_string())?
+        } else {
+            self.marketplace.public_key()
+        };
 
         // Generate listing ID
         let listing_id = Hash::random();
 
         // Create global listing (stored in marketplace, not in a specific channel)
-        let result = self.marketplace.create_global_listing(
+        self.marketplace.create_global_listing(
             listing_id,
             seller,
             params.title.clone(),
@@ -284,7 +289,7 @@ impl RpcApi {
             "id": hex::encode(listing_id.as_bytes()),
             "title": params.title,
             "price": params.price,
-            "seller": params.seller_pubkey,
+            "seller": hex::encode(seller.as_bytes()),
             "status": "active"
         }))
     }

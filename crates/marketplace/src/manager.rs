@@ -34,7 +34,7 @@ pub struct MarketplaceManager {
     keypair: Arc<KeyPair>,
 
     /// P2P network for broadcasting listings
-    network: Option<Arc<P2PNetwork>>,
+    network: Arc<RwLock<Option<Arc<P2PNetwork>>>>,
 
     /// Optional L1 client for blockchain operations
     l1_client: Option<Arc<tari_l2_l1_client::TariL1Client>>,
@@ -54,14 +54,15 @@ impl MarketplaceManager {
             escrow_contracts: Arc::new(RwLock::new(HashMap::new())),
             storage,
             keypair,
-            network: None,
+            network: Arc::new(RwLock::new(None)),
             l1_client,
         }
     }
 
     /// Set the P2P network for broadcasting listings
-    pub fn set_network(&mut self, network: Arc<P2PNetwork>) {
-        self.network = Some(network);
+    /// Set the P2P network for broadcasting listings
+    pub async fn set_network(&self, network: Arc<P2PNetwork>) {
+        *self.network.write().await = Some(network);
     }
 
     /// Load all channels from storage
@@ -340,7 +341,7 @@ impl MarketplaceManager {
         self.global_listings.write().await.push(listing.clone());
 
         // Broadcast to P2P network
-        if let Some(network) = &self.network {
+        if let Some(network) = self.network.read().await.as_ref() {
             let listing_bytes = bincode::serialize(&listing)
                 .map_err(|e| L2Error::SerializationError(e.to_string()))?;
             let signature = self.keypair.sign(&listing_bytes);
@@ -572,7 +573,13 @@ impl MarketplaceManager {
 
         Ok(released)
     }
+    /// Get the node's public key
+    pub fn public_key(&self) -> PublicKey {
+        self.keypair.public_key()
+    }
+
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -613,3 +620,4 @@ mod tests {
         assert_eq!(balance, Amount::new(1000));
     }
 }
+
