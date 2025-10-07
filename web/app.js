@@ -447,11 +447,17 @@ async function handleCreateListing(e) {
 }
 
 async function loadListings() {
+    console.log('[loadListings] Starting to load listings...');
     try {
+        console.log('[loadListings] Calling RPC get_listings');
         const listings = await state.rpc.call('get_listings');
+        console.log('[loadListings] Received listings:', listings);
         state.listings = listings || [];
+        console.log('[loadListings] Set state.listings to:', state.listings.length, 'items');
         renderListings();
+        console.log('[loadListings] Rendered listings');
     } catch (error) {
+        console.error('[loadListings] ERROR:', error);
         document.getElementById('listingsList').innerHTML =
             '<div class="empty-state"><div class="empty-state-icon">📦</div><div class="empty-state-text">No listings found</div></div>';
     }
@@ -545,7 +551,7 @@ function showListingDetails(listingId) {
     }
 
     document.getElementById('detailTitle').textContent = listing.title;
-    document.getElementById('detailPrice').textContent = formatPrice(listing.price) + ' XTM';
+    document.getElementById('detailPrice').textContent = listing.price.toLocaleString() + ' XTM';
     document.getElementById('detailCategory').textContent = listing.category || 'other';
     document.getElementById('detailCondition').textContent = listing.condition || 'New';
     document.getElementById('detailQuantity').textContent = listing.quantity || 'Available';
