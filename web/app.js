@@ -540,32 +540,24 @@ function renderListings() {
 function showListingDetails(listingId) {
     const listing = state.listings.find(l => l.id === listingId);
     if (!listing) {
-        showToast('Listing not found', 'error');
+        alert('Listing not found');
         return;
     }
 
-    // Populate modal with listing details
     document.getElementById('detailTitle').textContent = listing.title;
     document.getElementById('detailPrice').textContent = formatPrice(listing.price) + ' XTM';
     document.getElementById('detailCategory').textContent = listing.category || 'other';
-    
-    // Set condition (use a default if not in listing object)
     document.getElementById('detailCondition').textContent = listing.condition || 'New';
-    
-    // Set quantity (default to available if not in listing object)
     document.getElementById('detailQuantity').textContent = listing.quantity || 'Available';
     
-    // Set description
     const descContainer = document.getElementById('detailDescription');
     if (descContainer) {
         descContainer.textContent = listing.description;
     }
     
-    // Store listing ID for order placement
-    document.getElementById('itemDetailModal').dataset.listingId = listingId;
-    
-    // Show modal
-    document.getElementById('itemDetailModal').style.display = 'flex';
+    const modal = document.getElementById('itemDetailModal');
+    modal.dataset.listingId = listingId;
+    modal.style.display = 'flex';
 }
 
 function closeItemDetailModal() {
